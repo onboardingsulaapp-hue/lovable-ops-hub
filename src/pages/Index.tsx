@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Pendencia, User, Prioridade } from "@/types/pendencia";
+import { Pendencia, User, TipoImplantacao } from "@/types/pendencia";
 import { mockPendencias } from "@/data/mockData";
 import { LoginScreen } from "@/components/LoginScreen";
 import { StatsCards } from "@/components/StatsCards";
@@ -7,7 +7,8 @@ import { FilterBar, Filters } from "@/components/FilterBar";
 import { PendenciaTable } from "@/components/PendenciaTable";
 import { CreatePendenciaDialog } from "@/components/CreatePendenciaDialog";
 import { Button } from "@/components/ui/button";
-import { LogOut, Shield, UserCheck } from "lucide-react";
+import { LogOut, Shield, UserCheck, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 const emptyFilters: Filters = { colaborador: "", status: "", prioridade: "", origem: "", dataInicio: "", dataFim: "" };
 
@@ -15,6 +16,7 @@ const Index = () => {
   const [user, setUser] = useState<User | null>(null);
   const [pendencias, setPendencias] = useState<Pendencia[]>(mockPendencias);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const colaboradores = useMemo(() => [...new Set(pendencias.map((p) => p.colaborador))], [pendencias]);
 
@@ -39,8 +41,19 @@ const Index = () => {
     setPendencias((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
   };
 
+  const generateFingerprint = (razaoSocial: string, linha: number, tipo: TipoImplantacao): string => {
+    // Simula o fingerprint que seria gerado pelo backend
+    return razaoSocial
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^A-Z0-9 ]/g, "")
+      .replace(/\s+/g, "_") + `_${linha}_${tipo.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")}`;
+  };
+
   const handleCreatePendencia = (data: any) => {
     const now = new Date().toISOString();
+    const fingerprint = generateFingerprint(data.razao_social, data.linha_planilha, data.tipo_implantacao);
     const newPendencia: Pendencia = {
       id: `PND-${String(pendencias.length + 1).padStart(3, "0")}`,
       colaborador: data.colaborador,
@@ -51,11 +64,30 @@ const Index = () => {
       texto_pendencia: data.texto_pendencia,
       origem: "Manual",
       ultima_atualizacao: now,
+      razao_social: data.razao_social,
+      linha_planilha: data.linha_planilha,
+      tipo_implantacao: data.tipo_implantacao,
+      fingerprint,
+      erros: data.erros || [],
       historico: [
         { id: `h-${Date.now()}`, acao: "Pendência criada manualmente", usuario: user!.nome, dataHora: now },
       ],
     };
     setPendencias((prev) => [newPendencia, ...prev]);
+  };
+
+  const handleRefreshData = async () => {
+    setIsRefreshing(true);
+    // Simula chamada ao backend para reprocessar dados
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Em produção, aqui faria fetch ao backend e atualizaria setPendencias
+      toast.success("Dados atualizados com sucesso! O backend reprocessou a planilha.");
+    } catch {
+      toast.error("Erro ao atualizar dados. Tente novamente.");
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   if (!user) return <LoginScreen onLogin={setUser} />;
@@ -91,7 +123,7 @@ const Index = () => {
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-fade-in">
         {/* Title + Actions */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h2 className="text-xl font-bold text-foreground">
               {user.role === "admin" ? "Dashboard Geral" : "Minhas Pendências"}
@@ -103,25 +135,30 @@ const Index = () => {
             </p>
           </div>
           {user.role === "admin" && (
-            <CreatePendenciaDialog colaboradores={colaboradores} onSubmit={handleCreatePendencia} />
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefreshData}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? "animate-spin" : ""}`} />
+                {isRefreshing ? "Atualizando..." : "Atualizar Dados"}
+              </Button>
+              <CreatePendenciaDialog colaboradores={colaboradores} onSubmit={handleCreatePendencia} />
+            </div>
           )}
         </div>
 
         {/* Stats */}
         <StatsCards pendencias={user.role === "admin" ? pendencias : pendencias.filter((p) => p.colaborador === user.nome)} />
 
-        {/* Filters (admin only shows full filters) */}
+        {/* Filters */}
         {user.role === "admin" && (
           <FilterBar filters={filters} onFiltersChange={setFilters} colaboradores={colaboradores} />
         )}
-
-        {/* Colaborador simple filter */}
         {user.role === "colaborador" && (
-          <FilterBar
-            filters={filters}
-            onFiltersChange={setFilters}
-            colaboradores={[]}
-          />
+          <FilterBar filters={filters} onFiltersChange={setFilters} colaboradores={[]} />
         )}
 
         {/* Table */}
