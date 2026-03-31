@@ -8,20 +8,26 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Check, RotateCcw, MessageSquare, ChevronDown, ChevronUp, Building2, FileSpreadsheet, Fingerprint } from "lucide-react";
+import { Check, RotateCcw, MessageSquare, ChevronDown, ChevronUp, Building2, FileSpreadsheet, Fingerprint, Edit2 } from "lucide-react";
 import { toast } from "sonner";
+import { ReabrirPendenciaDialog } from "./ReabrirPendenciaDialog";
+import { EditPendenciaDialog } from "./EditPendenciaDialog";
 
 interface PendenciaTableProps {
   pendencias: Pendencia[];
   userRole: UserRole;
   userName: string;
   onUpdatePendencia: (id: string, updates: Partial<Pendencia>) => void;
+  onDeletePendencia?: (id: string, motivo: string) => void;
 }
 
-export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendencia }: PendenciaTableProps) {
+export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendencia, onDeletePendencia }: PendenciaTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [corrigirDialogId, setCorrigirDialogId] = useState<string | null>(null);
   const [comentario, setComentario] = useState("");
+  
+  const [reabrirPendencia, setReabrirPendencia] = useState<Pendencia | null>(null);
+  const [editPendencia, setEditPendencia] = useState<Pendencia | null>(null);
 
   const handleMarcarCorrigida = (id: string) => {
     const now = new Date().toISOString();
@@ -64,20 +70,43 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
     toast.success("Correção validada!");
   };
 
-  const handleReabrir = (id: string) => {
+  const handleReabrirSubmit = (id: string, updates: Partial<Pendencia>, comentarioReabertura: string) => {
     const now = new Date().toISOString();
     const pendencia = pendencias.find((p) => p.id === id);
     if (!pendencia) return;
 
     onUpdatePendencia(id, {
+      ...updates,
       status: "Pendente",
       ultima_atualizacao: now,
       historico: [
         ...pendencia.historico,
-        { id: `h-${Date.now()}`, acao: "Pendência reaberta", usuario: userName, dataHora: now },
+        { 
+          id: `h-${Date.now()}`, 
+          acao: "Pendência reaberta", 
+          usuario: userName, 
+          dataHora: now,
+          detalhes: comentarioReabertura
+        },
       ],
     });
-    toast.info("Pendência reaberta.");
+    toast.info("Pendência reaberta com as novas edições.");
+  };
+
+  const handleEditSubmit = (id: string, updates: Partial<Pendencia>) => {
+    const now = new Date().toISOString();
+    const pendencia = pendencias.find((p) => p.id === id);
+    if (!pendencia) return;
+
+    onUpdatePendencia(id, {
+      ...updates,
+      ultima_atualizacao: now,
+      historico: [
+        ...pendencia.historico,
+        { id: `h-${Date.now()}`, acao: "Pendência editada", usuario: userName, dataHora: now },
+      ],
+    });
+    toast.success("Pendência atualizada.");
   };
 
   const handleAlterarPrioridade = (id: string, prioridade: Prioridade) => {
@@ -122,7 +151,7 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
               {pendencias.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={colSpan} className="text-center py-10 text-muted-foreground">
-                    Nenhuma pendência encontrada.
+                    Nenhuma pendência encontrada nessa sessão.
                   </TableCell>
                 </TableRow>
               )}
@@ -170,31 +199,36 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                     <TableCell>
                       <div className="flex items-center gap-1">
                         {userRole === "colaborador" && p.status === "Pendente" && (
-                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setCorrigirDialogId(p.id)}>
+                          <Button size="sm" variant="outline" className="h-7 text-xs flex-shrink-0" onClick={() => setCorrigirDialogId(p.id)}>
                             <Check className="h-3 w-3 mr-1" />
                             Corrigir
                           </Button>
                         )}
                         {userRole === "admin" && p.status === "Corrigida" && (
                           <>
-                            <Button size="sm" className="h-7 text-xs" onClick={() => handleValidar(p.id)}>
+                            <Button size="sm" className="h-7 text-xs flex-shrink-0" onClick={() => handleValidar(p.id)}>
                               <Check className="h-3 w-3 mr-1" />
                               Validar
                             </Button>
-                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleReabrir(p.id)}>
+                            <Button size="sm" variant="outline" className="h-7 text-xs flex-shrink-0" onClick={() => setReabrirPendencia(p)}>
                               <RotateCcw className="h-3 w-3 mr-1" />
                               Reabrir
                             </Button>
                           </>
                         )}
                         {userRole === "admin" && p.status === "OK" && (
-                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleReabrir(p.id)}>
+                          <Button size="sm" variant="outline" className="h-7 text-xs flex-shrink-0" onClick={() => setReabrirPendencia(p)}>
                             <RotateCcw className="h-3 w-3 mr-1" />
                             Reabrir
                           </Button>
                         )}
+                        {userRole === "admin" && (
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 flex-shrink-0" onClick={() => setEditPendencia(p)} title="Editar/Excluir">
+                            <Edit2 className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                          </Button>
+                        )}
                         {p.comentario_colaborador && (
-                          <span title={p.comentario_colaborador}>
+                          <span title={p.comentario_colaborador} className="flex-shrink-0">
                             <MessageSquare className="h-4 w-4 text-muted-foreground" />
                           </span>
                         )}
@@ -304,6 +338,21 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
           </div>
         </DialogContent>
       </Dialog>
+      
+      <ReabrirPendenciaDialog
+        pendencia={reabrirPendencia}
+        open={!!reabrirPendencia}
+        onOpenChange={(v) => !v && setReabrirPendencia(null)}
+        onSubmit={handleReabrirSubmit}
+      />
+      
+      <EditPendenciaDialog
+        pendencia={editPendencia}
+        open={!!editPendencia}
+        onOpenChange={(v) => !v && setEditPendencia(null)}
+        onSubmit={handleEditSubmit}
+        onDelete={(id, motivo) => onDeletePendencia && onDeletePendencia(id, motivo)}
+      />
     </>
   );
 }

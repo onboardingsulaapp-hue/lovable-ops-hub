@@ -12,6 +12,14 @@ export interface HistoricoAcao {
   detalhes?: string;
 }
 
+export interface AdminLog {
+  id: string;
+  acao: string;
+  usuarioAdmin: string;
+  dataHora: string;
+  detalhes?: string;
+}
+
 export interface Pendencia {
   id: string;
   colaborador: string;
@@ -29,9 +37,12 @@ export interface Pendencia {
   tipo_implantacao: TipoImplantacao;
   fingerprint: string;
   erros: string[];
+  isDeleted?: boolean;
 }
 
 export interface User {
+  id: string;
   nome: string;
   role: UserRole;
+  status: "ativo" | "inativo";
 }
