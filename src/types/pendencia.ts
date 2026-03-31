@@ -1,6 +1,7 @@
 export type Status = "Pendente" | "Corrigida" | "OK";
 export type Prioridade = "Baixa" | "Média" | "Alta";
 export type Origem = "Automático" | "Manual";
+export type TipoImplantacao = "Saúde" | "Odonto";
 export type UserRole = "admin" | "colaborador";
 
 export interface HistoricoAcao {
@@ -23,6 +24,11 @@ export interface Pendencia {
   origem: Origem;
   ultima_atualizacao: string;
   historico: HistoricoAcao[];
+  razao_social: string;
+  linha_planilha: number;
+  tipo_implantacao: TipoImplantacao;
+  fingerprint: string;
+  erros: string[];
 }
 
 export interface User {
