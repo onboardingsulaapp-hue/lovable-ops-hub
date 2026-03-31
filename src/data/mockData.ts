@@ -1,0 +1,101 @@
+import { Pendencia, User } from "@/types/pendencia";
+
+export const mockUsers: User[] = [
+  { nome: "Admin", role: "admin" },
+  { nome: "Carlos Silva", role: "colaborador" },
+  { nome: "Ana Souza", role: "colaborador" },
+  { nome: "João Pereira", role: "colaborador" },
+];
+
+export const mockPendencias: Pendencia[] = [
+  {
+    id: "PND-001",
+    colaborador: "Carlos Silva",
+    data_vigencia: "2026-03-15",
+    status: "Pendente",
+    prioridade: "Alta",
+    pendencias: ["valor_faturamento", "desconto_aplicado"],
+    texto_pendencia: "Campos de faturamento e desconto não preenchidos na planilha de março.",
+    origem: "Automático",
+    ultima_atualizacao: "2026-03-28T14:30:00",
+    historico: [
+      { id: "h1", acao: "Pendência criada", usuario: "Sistema", dataHora: "2026-03-28T14:30:00" },
+    ],
+  },
+  {
+    id: "PND-002",
+    colaborador: "Ana Souza",
+    data_vigencia: "2026-03-10",
+    status: "Corrigida",
+    prioridade: "Média",
+    pendencias: ["cnpj_cliente"],
+    texto_pendencia: "CNPJ do cliente ausente no registro de vendas.",
+    comentario_colaborador: "CNPJ adicionado conforme documentação do cliente.",
+    origem: "Automático",
+    ultima_atualizacao: "2026-03-29T09:15:00",
+    historico: [
+      { id: "h2", acao: "Pendência criada", usuario: "Sistema", dataHora: "2026-03-27T10:00:00" },
+      { id: "h3", acao: "Status alterado para Corrigida", usuario: "Ana Souza", dataHora: "2026-03-29T09:15:00", detalhes: "CNPJ adicionado conforme documentação do cliente." },
+    ],
+  },
+  {
+    id: "PND-003",
+    colaborador: "João Pereira",
+    data_vigencia: "2026-03-20",
+    status: "OK",
+    prioridade: "Baixa",
+    pendencias: ["email_contato"],
+    texto_pendencia: "E-mail de contato do fornecedor não informado.",
+    origem: "Manual",
+    ultima_atualizacao: "2026-03-30T16:45:00",
+    historico: [
+      { id: "h4", acao: "Pendência criada manualmente", usuario: "Admin", dataHora: "2026-03-25T11:00:00" },
+      { id: "h5", acao: "Status alterado para Corrigida", usuario: "João Pereira", dataHora: "2026-03-28T14:00:00" },
+      { id: "h6", acao: "Status validado para OK", usuario: "Admin", dataHora: "2026-03-30T16:45:00" },
+    ],
+  },
+  {
+    id: "PND-004",
+    colaborador: "Carlos Silva",
+    data_vigencia: "2026-03-25",
+    status: "Pendente",
+    prioridade: "Média",
+    pendencias: ["numero_nota_fiscal"],
+    texto_pendencia: "Número da nota fiscal não preenchido para 3 registros de venda.",
+    origem: "Automático",
+    ultima_atualizacao: "2026-03-30T08:00:00",
+    historico: [
+      { id: "h7", acao: "Pendência criada", usuario: "Sistema", dataHora: "2026-03-30T08:00:00" },
+    ],
+  },
+  {
+    id: "PND-005",
+    colaborador: "Ana Souza",
+    data_vigencia: "2026-03-18",
+    status: "Pendente",
+    prioridade: "Alta",
+    pendencias: ["valor_comissao", "percentual_meta"],
+    texto_pendencia: "Valores de comissão e percentual de meta ausentes na planilha de desempenho.",
+    origem: "Automático",
+    ultima_atualizacao: "2026-03-31T10:00:00",
+    historico: [
+      { id: "h8", acao: "Pendência criada", usuario: "Sistema", dataHora: "2026-03-31T10:00:00" },
+    ],
+  },
+  {
+    id: "PND-006",
+    colaborador: "João Pereira",
+    data_vigencia: "2026-03-22",
+    status: "Corrigida",
+    prioridade: "Baixa",
+    pendencias: ["telefone_cliente"],
+    texto_pendencia: "Telefone do cliente não informado no cadastro.",
+    comentario_colaborador: "Telefone atualizado após contato com o cliente.",
+    origem: "Manual",
+    ultima_atualizacao: "2026-03-30T11:30:00",
+    historico: [
+      { id: "h9", acao: "Pendência criada manualmente", usuario: "Admin", dataHora: "2026-03-26T09:00:00" },
+      { id: "h10", acao: "Status alterado para Corrigida", usuario: "João Pereira", dataHora: "2026-03-30T11:30:00", detalhes: "Telefone atualizado após contato com o cliente." },
+    ],
+  },
+];
