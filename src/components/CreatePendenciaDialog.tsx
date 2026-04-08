@@ -9,8 +9,8 @@ import { Pendencia, Prioridade, TipoImplantacao } from "@/types/pendencia";
 import { Badge } from "@/components/ui/badge";
 
 interface CreatePendenciaDialogProps {
-  colaboradores: string[];
-  onSubmit: (data: Omit<Pendencia, "id" | "historico" | "ultima_atualizacao" | "status" | "origem" | "pendencias" | "fingerprint">) => void;
+  colaboradores: { id: string; nome: string }[];
+  onSubmit: (data: any) => void;
 }
 
 export function CreatePendenciaDialog({ colaboradores, onSubmit }: CreatePendenciaDialogProps) {
@@ -95,7 +95,7 @@ export function CreatePendenciaDialog({ colaboradores, onSubmit }: CreatePendenc
               </SelectTrigger>
               <SelectContent>
                 {colaboradores.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                  <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

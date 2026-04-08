@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Pendencia, UserRole, Prioridade } from "@/types/pendencia";
 import { StatusBadge, PrioridadeBadge } from "@/components/StatusBadge";
 import { HistoricoPanel } from "@/components/HistoricoPanel";
@@ -8,10 +8,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Check, RotateCcw, MessageSquare, ChevronDown, ChevronUp, Building2, FileSpreadsheet, Fingerprint, Edit2 } from "lucide-react";
+import { Check, RotateCcw, MessageSquare, ChevronDown, ChevronUp, Building2, FileSpreadsheet, Fingerprint, Edit2, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { ReabrirPendenciaDialog } from "./ReabrirPendenciaDialog";
 import { EditPendenciaDialog } from "./EditPendenciaDialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface PendenciaTableProps {
   pendencias: Pendencia[];
@@ -19,9 +20,10 @@ interface PendenciaTableProps {
   userName: string;
   onUpdatePendencia: (id: string, updates: Partial<Pendencia>) => void;
   onDeletePendencia?: (id: string, motivo: string) => void;
+  colaboradores?: { id: string; nome: string }[];
 }
 
-export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendencia, onDeletePendencia }: PendenciaTableProps) {
+export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendencia, onDeletePendencia, colaboradores = [] }: PendenciaTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [corrigirDialogId, setCorrigirDialogId] = useState<string | null>(null);
   const [comentario, setComentario] = useState("");
@@ -30,24 +32,9 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
   const [editPendencia, setEditPendencia] = useState<Pendencia | null>(null);
 
   const handleMarcarCorrigida = (id: string) => {
-    const now = new Date().toISOString();
-    const pendencia = pendencias.find((p) => p.id === id);
-    if (!pendencia) return;
-
     onUpdatePendencia(id, {
       status: "Corrigida",
       comentario_colaborador: comentario || undefined,
-      ultima_atualizacao: now,
-      historico: [
-        ...pendencia.historico,
-        {
-          id: `h-${Date.now()}`,
-          acao: "Status alterado para Corrigida",
-          usuario: userName,
-          dataHora: now,
-          detalhes: comentario || undefined,
-        },
-      ],
     });
     setCorrigirDialogId(null);
     setComentario("");
@@ -55,73 +42,28 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
   };
 
   const handleValidar = (id: string) => {
-    const now = new Date().toISOString();
-    const pendencia = pendencias.find((p) => p.id === id);
-    if (!pendencia) return;
-
     onUpdatePendencia(id, {
       status: "OK",
-      ultima_atualizacao: now,
-      historico: [
-        ...pendencia.historico,
-        { id: `h-${Date.now()}`, acao: "Status validado para OK", usuario: userName, dataHora: now },
-      ],
     });
     toast.success("Correção validada!");
   };
 
   const handleReabrirSubmit = (id: string, updates: Partial<Pendencia>, comentarioReabertura: string) => {
-    const now = new Date().toISOString();
-    const pendencia = pendencias.find((p) => p.id === id);
-    if (!pendencia) return;
-
     onUpdatePendencia(id, {
       ...updates,
       status: "Pendente",
-      ultima_atualizacao: now,
-      historico: [
-        ...pendencia.historico,
-        { 
-          id: `h-${Date.now()}`, 
-          acao: "Pendência reaberta", 
-          usuario: userName, 
-          dataHora: now,
-          detalhes: comentarioReabertura
-        },
-      ],
+      comentario_colaborador: comentarioReabertura,
     });
     toast.info("Pendência reaberta com as novas edições.");
   };
 
   const handleEditSubmit = (id: string, updates: Partial<Pendencia>) => {
-    const now = new Date().toISOString();
-    const pendencia = pendencias.find((p) => p.id === id);
-    if (!pendencia) return;
-
-    onUpdatePendencia(id, {
-      ...updates,
-      ultima_atualizacao: now,
-      historico: [
-        ...pendencia.historico,
-        { id: `h-${Date.now()}`, acao: "Pendência editada", usuario: userName, dataHora: now },
-      ],
-    });
+    onUpdatePendencia(id, updates);
     toast.success("Pendência atualizada.");
   };
 
   const handleAlterarPrioridade = (id: string, prioridade: Prioridade) => {
-    const now = new Date().toISOString();
-    const pendencia = pendencias.find((p) => p.id === id);
-    if (!pendencia) return;
-
-    onUpdatePendencia(id, {
-      prioridade,
-      ultima_atualizacao: now,
-      historico: [
-        ...pendencia.historico,
-        { id: `h-${Date.now()}`, acao: `Prioridade alterada para ${prioridade}`, usuario: userName, dataHora: now },
-      ],
-    });
+    onUpdatePendencia(id, { prioridade });
     toast.success(`Prioridade alterada para ${prioridade}.`);
   };
 
@@ -133,18 +75,18 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/50">
+              <TableRow className="bg-[#F7F8FA] border-b border-[#D9CDCD]">
                 <TableHead className="w-10"></TableHead>
-                <TableHead className="text-xs font-semibold">ID</TableHead>
-                {userRole === "admin" && <TableHead className="text-xs font-semibold">Colaborador</TableHead>}
-                <TableHead className="text-xs font-semibold">Razão Social</TableHead>
-                <TableHead className="text-xs font-semibold">Linha</TableHead>
-                <TableHead className="text-xs font-semibold">Tipo</TableHead>
-                <TableHead className="text-xs font-semibold">Vigência</TableHead>
-                <TableHead className="text-xs font-semibold">Status</TableHead>
-                <TableHead className="text-xs font-semibold">Prioridade</TableHead>
-                <TableHead className="text-xs font-semibold">Origem</TableHead>
-                <TableHead className="text-xs font-semibold">Ações</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">ID</TableHead>
+                {userRole === "admin" && <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Colaborador</TableHead>}
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Razão Social</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Linha</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Tipo</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Vigência</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Status</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Prioridade</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Origem</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -156,8 +98,8 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                 </TableRow>
               )}
               {pendencias.map((p) => (
-                <>
-                  <TableRow key={p.id} className="hover:bg-muted/30 transition-colors">
+                <React.Fragment key={p.id}>
+                  <TableRow className="hover:bg-[#E9ECF2] even:bg-[#F7F8FA]/50 transition-colors border-b border-[#D9CDCD]/50">
                     <TableCell>
                       <Button
                         variant="ghost"
@@ -169,7 +111,7 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                       </Button>
                     </TableCell>
                     <TableCell className="text-xs font-mono text-muted-foreground">{p.id}</TableCell>
-                    {userRole === "admin" && <TableCell className="text-sm font-medium">{p.colaborador}</TableCell>}
+                    {userRole === "admin" && <TableCell className="text-sm font-medium">{p.colaborador_nome}</TableCell>}
                     <TableCell className="text-sm max-w-[160px] truncate" title={p.razao_social}>{p.razao_social}</TableCell>
                     <TableCell className="text-sm text-center">{p.linha_planilha}</TableCell>
                     <TableCell>
@@ -177,7 +119,39 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                         {p.tipo_implantacao}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm">{new Date(p.data_vigencia).toLocaleDateString("pt-BR")}</TableCell>
+                    <TableCell className="text-sm">
+                      {(() => {
+                        if (!p.data_vigencia) return "—";
+                        
+                        // Caso 1: Se for um Timestamp do Firebase (objeto com .seconds)
+                        const val = p.data_vigencia as any;
+                        if (val && typeof val === 'object' && 'seconds' in val) {
+                          try {
+                            return new Date(val.seconds * 1000).toLocaleDateString("pt-BR");
+                          } catch {
+                            return "Erro na data";
+                          }
+                        }
+
+                        // Caso 2: Tenta criar o objeto Date a partir de string/number
+                        const date = new Date(p.data_vigencia);
+                        
+                        // Se for válido, retorna formato BR
+                        if (!isNaN(date.getTime())) {
+                          return date.toLocaleDateString("pt-BR", { timeZone: 'UTC' });
+                        }
+                        
+                        // Caso 3: Se falhou (Invalid Date), mas parece uma data BR (Ex: 01/04/2026)
+                        if (typeof p.data_vigencia === 'string' && p.data_vigencia.includes('/')) {
+                          return p.data_vigencia;
+                        }
+
+                        // Fallback: Se for objeto e chegou aqui, evita crash convertendo pra string
+                        if (typeof p.data_vigencia === 'object') return JSON.stringify(p.data_vigencia);
+
+                        return p.data_vigencia || "—";
+                      })()}
+                    </TableCell>
                     <TableCell><StatusBadge status={p.status} /></TableCell>
                     <TableCell>
                       {userRole === "admin" ? (
@@ -201,77 +175,85 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                         {userRole === "colaborador" && p.status === "Pendente" && (
                           <Button size="sm" variant="outline" className="h-7 text-xs flex-shrink-0" onClick={() => setCorrigirDialogId(p.id)}>
                             <Check className="h-3 w-3 mr-1" />
-                            Corrigir
+                            Registrar Correção
                           </Button>
                         )}
                         {userRole === "admin" && p.status === "Corrigida" && (
-                          <>
-                            <Button size="sm" className="h-7 text-xs flex-shrink-0" onClick={() => handleValidar(p.id)}>
-                              <Check className="h-3 w-3 mr-1" />
-                              Validar
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-7 text-xs flex-shrink-0" onClick={() => setReabrirPendencia(p)}>
-                              <RotateCcw className="h-3 w-3 mr-1" />
-                              Reabrir
-                            </Button>
-                          </>
-                        )}
-                        {userRole === "admin" && p.status === "OK" && (
-                          <Button size="sm" variant="outline" className="h-7 text-xs flex-shrink-0" onClick={() => setReabrirPendencia(p)}>
-                            <RotateCcw className="h-3 w-3 mr-1" />
-                            Reabrir
+                          <Button size="sm" className="h-7 text-xs flex-shrink-0" onClick={() => handleValidar(p.id)}>
+                            <Check className="h-3 w-3 mr-1" />
+                            Validar Resolução
                           </Button>
                         )}
-                        {userRole === "admin" && (
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 flex-shrink-0" onClick={() => setEditPendencia(p)} title="Editar/Excluir">
-                            <Edit2 className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                          </Button>
-                        )}
-                        {p.comentario_colaborador && (
-                          <span title={p.comentario_colaborador} className="flex-shrink-0">
-                            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                          </span>
+                        
+                        {(userRole === "admin" || p.comentario_colaborador) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 flex-shrink-0">
+                                <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              {userRole === "admin" && (p.status === "Corrigida" || p.status === "OK") && (
+                                <DropdownMenuItem onClick={() => setReabrirPendencia(p)}>
+                                  <RotateCcw className="h-4 w-4 mr-2" />
+                                  Reabrir
+                                </DropdownMenuItem>
+                              )}
+                              {userRole === "admin" && (
+                                <DropdownMenuItem onClick={() => setEditPendencia(p)}>
+                                  <Edit2 className="h-4 w-4 mr-2" />
+                                  Editar / Excluir
+                                </DropdownMenuItem>
+                              )}
+                              {p.comentario_colaborador && (
+                                <DropdownMenuItem disabled className="text-muted-foreground">
+                                  <MessageSquare className="h-4 w-4 mr-2" />
+                                  Comentário incluído
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
                       </div>
                     </TableCell>
                   </TableRow>
                   {expandedId === p.id && (
                     <TableRow key={`${p.id}-detail`}>
-                      <TableCell colSpan={colSpan} className="bg-muted/20 p-0">
-                        <div className="grid md:grid-cols-2 gap-4 p-4">
-                          <div className="space-y-3">
-                            <h4 className="text-sm font-semibold text-foreground">Detalhes da Pendência</h4>
+                      <TableCell colSpan={colSpan} className="bg-[#F7F8FA] p-0 border-b border-[#D9CDCD]">
+                        <div className="grid md:grid-cols-2 gap-8 p-8">
+                          <div className="space-y-6">
+                            <h4 className="text-xs font-bold text-[#1D2E5D] uppercase tracking-widest border-b border-[#D9CDCD] pb-2">Detalhes da Pendência</h4>
 
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <Building2 className="h-3.5 w-3.5" />
-                                <span className="font-medium">Razão Social:</span>
+                            <div className="grid grid-cols-2 gap-y-4 text-sm">
+                              <div className="flex items-center gap-2 text-[#737D9A]">
+                                <Building2 className="h-4 w-4" />
+                                <span className="font-bold uppercase text-[10px]">Razão Social:</span>
                               </div>
-                              <span className="text-foreground">{p.razao_social}</span>
+                              <span className="text-[#1D2E5D] font-medium">{p.razao_social}</span>
 
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <FileSpreadsheet className="h-3.5 w-3.5" />
-                                <span className="font-medium">Linha:</span>
+                              <div className="flex items-center gap-2 text-[#737D9A]">
+                                <FileSpreadsheet className="h-4 w-4" />
+                                <span className="font-bold uppercase text-[10px]">Linha:</span>
                               </div>
-                              <span className="text-foreground">{p.linha_planilha}</span>
+                              <span className="text-[#1D2E5D] font-medium">{p.linha_planilha}</span>
 
-                              <span className="text-muted-foreground font-medium">Tipo:</span>
-                              <span className="text-foreground">{p.tipo_implantacao}</span>
+                              <span className="text-[#737D9A] font-bold uppercase text-[10px]">Tipo:</span>
+                              <span className="text-[#1D2E5D] font-medium">{p.tipo_implantacao}</span>
 
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <Fingerprint className="h-3.5 w-3.5" />
-                                <span className="font-medium">Fingerprint:</span>
+                              <div className="flex items-center gap-2 text-[#737D9A]">
+                                <Fingerprint className="h-4 w-4" />
+                                <span className="font-bold uppercase text-[10px]">Fingerprint:</span>
                               </div>
-                              <span className="text-foreground text-xs font-mono break-all">{p.fingerprint}</span>
+                              <span className="text-[#1D2E5D] text-xs font-mono break-all">{p.fingerprint}</span>
                             </div>
 
                             {/* Erros */}
-                            {p.erros.length > 0 && (
+                            {p.erros && p.erros.length > 0 && (
                               <div>
-                                <p className="text-xs font-medium text-muted-foreground mb-1.5">Erros encontrados:</p>
-                                <div className="flex flex-wrap gap-1.5">
+                                <p className="text-[10px] font-bold text-[#737D9A] mb-2 uppercase tracking-tight">Erros encontrados:</p>
+                                <div className="flex flex-wrap gap-2">
                                   {p.erros.map((erro, i) => (
-                                    <Badge key={i} variant="destructive" className="text-xs font-normal">
+                                    <Badge key={i} variant="outline" className="text-[11px] font-semibold border-red-200 bg-red-50 text-red-700 rounded-sm">
                                       {erro}
                                     </Badge>
                                   ))}
@@ -280,32 +262,28 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                             )}
 
                             {/* Resumo */}
-                            <div>
-                              <p className="text-xs font-medium text-muted-foreground mb-1">Resumo / Ação recomendada:</p>
-                              <p className="text-sm text-foreground">{p.texto_pendencia}</p>
-                            </div>
-
-                            <div className="text-xs text-muted-foreground">
-                              <strong>Campos pendentes:</strong> {p.pendencias.join(", ") || "—"}
+                            <div className="bg-white p-4 rounded-lg border border-[#D9CDCD] shadow-sm">
+                              <p className="text-[10px] font-bold text-[#737D9A] mb-2 uppercase">Resumo / Ação recomendada:</p>
+                              <p className="text-sm text-[#1D2E5D] leading-relaxed">{p.texto_pendencia}</p>
                             </div>
 
                             {p.comentario_colaborador && (
-                              <div className="bg-primary/5 rounded-md p-3">
-                                <p className="text-xs font-medium text-primary mb-1">Comentário do colaborador:</p>
-                                <p className="text-sm text-foreground">{p.comentario_colaborador}</p>
+                              <div className="bg-[#EFF6FF] border-l-4 border-[#1D2E5D] p-4">
+                                <p className="text-[10px] font-bold text-[#1D2E5D] mb-2 uppercase">Comentário do colaborador:</p>
+                                <p className="text-sm text-[#1D2E5D] italic">"{p.comentario_colaborador}"</p>
                               </div>
                             )}
 
-                            <p className="text-xs text-muted-foreground">
-                              Última atualização: {new Date(p.ultima_atualizacao).toLocaleString("pt-BR")}
+                            <p className="text-[10px] text-[#737D9A] font-bold uppercase font-mono">
+                              Atualizado: {p.atualizado_em ? new Date(p.atualizado_em).toLocaleString("pt-BR") : "—"}
                             </p>
                           </div>
-                          <HistoricoPanel historico={p.historico} />
+                          <HistoricoPanel pendenciaId={p.id} />
                         </div>
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </React.Fragment>
               ))}
             </TableBody>
           </Table>
@@ -352,6 +330,8 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
         onOpenChange={(v) => !v && setEditPendencia(null)}
         onSubmit={handleEditSubmit}
         onDelete={(id, motivo) => onDeletePendencia && onDeletePendencia(id, motivo)}
+        colaboradores={colaboradores}
+        userRole={userRole}
       />
     </>
   );

@@ -1,15 +1,19 @@
-export type Status = "Pendente" | "Corrigida" | "OK";
+export type Status = "Pendente" | "Corrigida" | "OK" | "Ignorada";
 export type Prioridade = "Baixa" | "Média" | "Alta";
 export type Origem = "Automático" | "Manual";
 export type TipoImplantacao = "Saúde" | "Odonto";
-export type UserRole = "admin" | "colaborador";
+export type UserRole = "admin" | "colaborador" | "socio";
 
 export interface HistoricoAcao {
   id: string;
   acao: string;
-  usuario: string;
-  dataHora: string;
-  detalhes?: string;
+  usuario_id: string;
+  usuario_nome: string;
+  perfil: string;
+  timestamp: string; // ISO string para facilitar renderização
+  comentario?: string;
+  antes?: any;
+  depois?: any;
 }
 
 export interface AdminLog {
@@ -21,28 +25,35 @@ export interface AdminLog {
 }
 
 export interface Pendencia {
-  id: string;
-  colaborador: string;
+  id: string; // id do documento = id da pendencia
+  colaborador_id: string;
+  colaborador_nome: string;
   data_vigencia: string;
   status: Status;
   prioridade: Prioridade;
-  pendencias: string[];
+  pendencias: string[]; // No Firebase: itens_pendentes
   texto_pendencia: string;
   comentario_colaborador?: string;
   origem: Origem;
-  ultima_atualizacao: string;
+  criado_em: string;
+  atualizado_em: string;
   historico: HistoricoAcao[];
   razao_social: string;
   linha_planilha: number;
   tipo_implantacao: TipoImplantacao;
   fingerprint: string;
   erros: string[];
-  isDeleted?: boolean;
+  isDeleted?: boolean; // Podemos usar Ignorada em vez disso
 }
 
 export interface User {
-  id: string;
+  id: string; // O ID do documento será o email do usuário no pre_cadastro ou o UID no usuarios
   nome: string;
-  role: UserRole;
-  status: "ativo" | "inativo";
+  email: string;
+  role: UserRole; // Mapeado para 'role' no Firestore
+  status: "ativo" | "inativo"; // Mapeado para 'status' (string) no Firestore
+  uid?: string;
+  criado_em?: any;
+  atualizado_em?: any;
 }
+

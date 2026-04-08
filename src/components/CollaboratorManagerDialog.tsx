@@ -19,17 +19,20 @@ export function CollaboratorManagerDialog({ users, onAdd, onEdit, onDelete }: Co
   const [editingId, setEditingId] = useState<string | null>(null);
   
   const [newNome, setNewNome] = useState("");
+  const [newEmail, setNewEmail] = useState("");
   const [newRole, setNewRole] = useState<UserRole>("colaborador");
   const [newStatus, setNewStatus] = useState<"ativo" | "inativo">("ativo");
 
   const [editNome, setEditNome] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [editRole, setEditRole] = useState<UserRole>("colaborador");
   const [editStatus, setEditStatus] = useState<"ativo" | "inativo">("ativo");
 
   const handleAdd = () => {
-    if (!newNome.trim()) return;
-    onAdd({ nome: newNome, role: newRole, status: newStatus });
+    if (!newNome.trim() || !newEmail.trim()) return;
+    onAdd({ nome: newNome, email: newEmail.trim().toLowerCase(), role: newRole, status: newStatus });
     setNewNome("");
+    setNewEmail("");
     setNewRole("colaborador");
     setNewStatus("ativo");
   };
@@ -37,6 +40,7 @@ export function CollaboratorManagerDialog({ users, onAdd, onEdit, onDelete }: Co
   const startEdit = (u: User) => {
     setEditingId(u.id);
     setEditNome(u.nome);
+    setEditEmail(u.email || "");
     setEditRole(u.role);
     setEditStatus(u.status);
   };
@@ -46,8 +50,8 @@ export function CollaboratorManagerDialog({ users, onAdd, onEdit, onDelete }: Co
   };
 
   const saveEdit = (id: string) => {
-    if (!editNome.trim()) return;
-    onEdit(id, { nome: editNome, role: editRole, status: editStatus });
+    if (!editNome.trim() || !editEmail.trim()) return;
+    onEdit(id, { nome: editNome, email: editEmail.trim().toLowerCase(), role: editRole, status: editStatus });
     setEditingId(null);
   };
 
@@ -59,16 +63,20 @@ export function CollaboratorManagerDialog({ users, onAdd, onEdit, onDelete }: Co
           Gerenciar Colaboradores
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Gestão de Colaboradores</DialogTitle>
+          <DialogTitle>Gestão de Usuários (Pré-Cadastro)</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-6 mt-4">
           <div className="bg-muted/30 p-4 rounded-lg flex items-end gap-3 flex-wrap">
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-1 min-w-[150px]">
               <label className="text-xs font-medium mb-1 block">Nome do colaborador</label>
               <Input value={newNome} onChange={(e) => setNewNome(e.target.value)} placeholder="Ex: Maria" />
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-xs font-medium mb-1 block">E-mail Corporativo</label>
+              <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="email@empresa.com.br" />
             </div>
             <div className="w-32">
               <label className="text-xs font-medium mb-1 block">Role</label>
@@ -77,10 +85,11 @@ export function CollaboratorManagerDialog({ users, onAdd, onEdit, onDelete }: Co
                 <SelectContent>
                   <SelectItem value="colaborador">Colaborador</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="socio">Sócio</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-32">
+            <div className="w-28">
               <label className="text-xs font-medium mb-1 block">Status</label>
               <Select value={newStatus} onValueChange={(v) => setNewStatus(v as "ativo" | "inativo")}>
                 <SelectTrigger><SelectValue/></SelectTrigger>
@@ -90,7 +99,7 @@ export function CollaboratorManagerDialog({ users, onAdd, onEdit, onDelete }: Co
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleAdd} disabled={!newNome.trim()}>Adicionar</Button>
+            <Button onClick={handleAdd} disabled={!newNome.trim() || !newEmail.trim()}>Adicionar</Button>
           </div>
 
           <div className="border rounded-lg overflow-hidden">
@@ -98,8 +107,9 @@ export function CollaboratorManagerDialog({ users, onAdd, onEdit, onDelete }: Co
               <thead className="bg-muted text-muted-foreground">
                 <tr>
                   <th className="text-left font-medium p-3">Nome</th>
-                  <th className="text-left font-medium p-3 w-32">Role</th>
-                  <th className="text-center font-medium p-3 w-28">Status</th>
+                  <th className="text-left font-medium p-3">E-mail</th>
+                  <th className="text-left font-medium p-3 w-28">Role</th>
+                  <th className="text-center font-medium p-3 w-24">Status</th>
                   <th className="text-right font-medium p-3 w-24">Ações</th>
                 </tr>
               </thead>
@@ -109,12 +119,14 @@ export function CollaboratorManagerDialog({ users, onAdd, onEdit, onDelete }: Co
                     {editingId === u.id ? (
                       <>
                         <td className="p-2"><Input value={editNome} onChange={(e) => setEditNome(e.target.value)} className="h-8 text-sm" /></td>
+                        <td className="p-2"><Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="h-8 text-sm" /></td>
                         <td className="p-2">
                           <Select value={editRole} onValueChange={(v) => setEditRole(v as UserRole)}>
                             <SelectTrigger className="h-8 text-sm"><SelectValue/></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="colaborador">Colaborador</SelectItem>
                               <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="socio">Sócio</SelectItem>
                             </SelectContent>
                           </Select>
                         </td>
@@ -137,6 +149,7 @@ export function CollaboratorManagerDialog({ users, onAdd, onEdit, onDelete }: Co
                     ) : (
                       <>
                         <td className="p-3 font-medium">{u.nome}</td>
+                        <td className="p-3 text-muted-foreground">{u.email}</td>
                         <td className="p-3 capitalize">{u.role}</td>
                         <td className="p-3 text-center">
                           <Badge variant={u.status === "ativo" ? "default" : "secondary"} className="text-[10px] font-normal px-2 py-0 h-5">

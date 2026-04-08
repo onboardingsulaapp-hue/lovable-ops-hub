@@ -2,6 +2,7 @@ import { Pendencia, User } from "@/types/pendencia";
 
 export const mockUsers: User[] = [
   { id: "u1", nome: "Admin", role: "admin", status: "ativo" },
+  { id: "u5", nome: "Sócio Sênior", role: "socio", status: "ativo" },
   { id: "u2", nome: "Carlos Silva", role: "colaborador", status: "ativo" },
   { id: "u3", nome: "Ana Souza", role: "colaborador", status: "ativo" },
   { id: "u4", nome: "João Pereira", role: "colaborador", status: "ativo" },

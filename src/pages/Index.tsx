@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
-import { Pendencia, User, TipoImplantacao, AdminLog } from "@/types/pendencia";
-import { mockPendencias, mockUsers } from "@/data/mockData";
+import { useState, useMemo, useEffect } from "react";
+import { Pendencia, User, UserRole, TipoImplantacao, AdminLog } from "@/types/pendencia";
+import { useAuth } from "@/contexts/AuthContext";
 import { LoginScreen } from "@/components/LoginScreen";
 import { StatsCards } from "@/components/StatsCards";
 import { FilterBar, Filters } from "@/components/FilterBar";
@@ -10,44 +10,142 @@ import { CollaboratorManagerDialog } from "@/components/CollaboratorManagerDialo
 import { AdminLogsPanel } from "@/components/AdminLogsPanel";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Shield, UserCheck, RefreshCw, Check } from "lucide-react";
+import { LogOut, Shield, UserCheck, RefreshCw, Check, LineChart, BriefcaseBusiness, Users as UsersIcon, Clock, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
+import { SocioCharts } from "@/components/socio/SocioCharts";
+import { SendEmailDialog } from "@/components/socio/SendEmailDialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { auth, db } from "@/lib/firebase";
+import { collection, doc, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 
-const emptyFilters: Filters = { colaborador: "", status: "", prioridade: "", origem: "", dataInicio: "", dataFim: "" };
+const emptyFilters: Filters = { colaborador_id: "", status: "", prioridade: "", origem: "", data_inicio: "", data_fim: "", tipo_implantacao: "" };
 
 const Index = () => {
-  const [users, setUsers] = useState<User[]>(mockUsers);
-  const [user, setUser] = useState<User | null>(null);
-  const [pendencias, setPendencias] = useState<Pendencia[]>(mockPendencias);
+  const { profile: user, loading, logout } = useAuth();
+  const [users, setUsers] = useState<User[]>([]);
+  const [pendencias, setPendencias] = useState<Pendencia[]>([]);
+  const [listenerError, setListenerError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
   const [adminLogs, setAdminLogs] = useState<AdminLog[]>([]);
 
-  // Agora colaboradores vêm do nosso state de Users (apenas os ativos e tipo 'colaborador')
-  const colaboradores = useMemo(() =>
-    users.filter(u => u.role === "colaborador" && u.status === "ativo").map((u) => u.nome),
-    [users]);
+  // 1. Escutar usuários em tempo real (Apenas Admin)
+  useEffect(() => {
+    if (!user || user.role !== "admin") return;
 
-  // Filtramos as pendências que não foram excluídas (soft delete)
+    // Escutamos apenas se for admin, pois as Rules bloqueiam listagem de usuarios para não admins
+    const unsubscribeUsers = onSnapshot(
+      collection(db, "usuarios"), 
+      (snapshot) => {
+        const usersData = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            nome: data.nome,
+            email: data.email,
+            role: data.role as UserRole,
+            status: data.status as "ativo" | "inativo",
+            uid: data.uid,
+            criado_em: data.criado_em,
+            atualizado_em: data.atualizado_em
+          };
+        }) as User[];
+        setUsers(usersData);
+      },
+      (error) => {
+        console.error("onSnapshot Erro permissão Usuarios:", error);
+      }
+    );
+
+    return () => unsubscribeUsers();
+  }, [user]);
+
+  // 2. Escutar pendencias em tempo real (Filtrado para colaborador)
+  useEffect(() => {
+    if (!user) return;
+    let pendenciasQuery = collection(db, "pendencias") as any;
+    
+    if (user.role === "colaborador") {
+      pendenciasQuery = query(collection(db, "pendencias"), where("colaborador_id", "==", user.id));
+    }
+
+    const unsubscribePend = onSnapshot(
+      pendenciasQuery,
+      (snapshot) => {
+        setListenerError(null);
+        const pendsData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          
+          // Compatibilidade In-memory (Fallback preventivo)
+          const statusVal = data.status || "Pendente";
+          const prioriVal = data.prioridade || "Media";
+          const origemVal = data.origem || "Manual";
+          const colabIdVal = data.colaborador_id || "sem_responsavel";
+          const delVal = data.isDeleted === undefined ? false : data.isDeleted;
+          
+          return {
+            id: doc.id,
+            ...data,
+            status: statusVal,
+            prioridade: prioriVal,
+            origem: origemVal,
+            isDeleted: delVal,
+            colaborador_id: colabIdVal,
+            pendencias: data.itens_pendentes || data.erros || [],
+            erros: data.erros || data.itens_pendentes || [],
+          } as Pendencia;
+        });
+        setPendencias(pendsData);
+      },
+      (error) => {
+        console.error("onSnapshot Erro de Permissão Pendencias:", error.message);
+        setListenerError(`Erro de Acesso: O Firebase bloqueou a leitura de pendências. (${error.message})`);
+        // Não jogamos array vazio para não fingir que apagou as coisas; mantemos o array e só alertamos.
+      }
+    );
+
+    return () => unsubscribePend();
+  }, [user]);
+
+
+  const colaboradores = useMemo(() => {
+    const map = new Map<string, { id: string; nome: string }>();
+    users.filter(u => u.role === "colaborador" && u.status === "ativo").forEach(u => {
+      map.set(u.id, { id: u.id, nome: u.nome });
+    });
+    return Array.from(map.values());
+  }, [users]);
+
   const activePendencias = useMemo(() => pendencias.filter(p => !p.isDeleted), [pendencias]);
 
   const filteredPendencias = useMemo(() => {
     let result = activePendencias;
-
-    if (user?.role === "colaborador") {
-      result = result.filter((p) => p.colaborador === user.nome);
-    }
-
-    if (filters.colaborador) result = result.filter((p) => p.colaborador === filters.colaborador);
+    if (filters.colaborador_id) result = result.filter((p) => p.colaborador_id === filters.colaborador_id);
     if (filters.status) result = result.filter((p) => p.status === filters.status);
     if (filters.prioridade) result = result.filter((p) => p.prioridade === filters.prioridade);
     if (filters.origem) result = result.filter((p) => p.origem === filters.origem);
-    if (filters.dataInicio) result = result.filter((p) => p.data_vigencia >= filters.dataInicio);
-    if (filters.dataFim) result = result.filter((p) => p.data_vigencia <= filters.dataFim);
+    if (filters.tipo_implantacao) result = result.filter((p) => p.tipo_implantacao === filters.tipo_implantacao);
+    if (filters.data_inicio || filters.data_fim) {
+      result = result.filter((p) => {
+        if (!p.data_vigencia) return false;
+        
+        let dateVal: string;
+        const val = p.data_vigencia as any;
+        
+        if (val && typeof val === 'object' && 'seconds' in val) {
+          dateVal = new Date(val.seconds * 1000).toISOString().split('T')[0];
+        } else {
+          dateVal = p.data_vigencia.toString();
+        }
+
+        if (filters.data_inicio && dateVal < filters.data_inicio) return false;
+        if (filters.data_fim && dateVal > filters.data_fim) return false;
+        return true;
+      });
+    }
 
     return result;
-  }, [activePendencias, filters, user]);
+  }, [activePendencias, filters]);
 
   const addAdminLog = (acao: string, detalhes?: string) => {
     if (!user || user.role !== "admin") return;
@@ -61,16 +159,71 @@ const Index = () => {
     setAdminLogs(prev => [newLog, ...prev]);
   };
 
-  const handleUpdatePendencia = (id: string, updates: Partial<Pendencia>) => {
-    setPendencias((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
-    if (updates.status || updates.erros || updates.prioridade || updates.texto_pendencia) {
-      addAdminLog("Edição/Atualização de Pendência", `A pendência ${id} recebeu uma atualização de conteúdo/status.`);
+  const executeUpdateAndHistory = async (id: string, updates: Partial<Pendencia>, acao: string, detalhes?: string) => {
+    const now = new Date().toISOString();
+    
+    // Mapeamento extra se passar colaborador antigo, converter
+    const finalUpdates: any = { ...updates, atualizado_em: now };
+    
+    if ((updates as any).colaborador) {
+       const nomeAlvo = (updates as any).colaborador.trim();
+       const u = users.find(x => x.nome.trim() === nomeAlvo);
+       finalUpdates.colaborador_nome = nomeAlvo;
+       if (u) {
+         finalUpdates.colaborador_id = u.id;
+       } else {
+         console.warn("Colaborador não encontrado para o nome:", nomeAlvo);
+         toast.error(`Não foi possível encontrar o ID de ${nomeAlvo}. Verifique se ele está ativo.`);
+       }
+       delete finalUpdates.colaborador;
+    }
+
+    if (updates.erros || updates.pendencias) {
+       finalUpdates.itens_pendentes = updates.erros || updates.pendencias;
+       delete finalUpdates.erros;
+       delete finalUpdates.pendencias;
+    }
+    
+    // Não escrever no doc o array de history antigo
+    delete finalUpdates.historico;
+
+    try {
+      // 1. Atualizar o Doc
+      await updateDoc(doc(db, "pendencias", id), finalUpdates);
+      
+      // 2. Gravar o Histórico na subcollection
+      await addDoc(collection(db, `pendencias/${id}/historico`), {
+        acao,
+        usuario_id: user?.id,
+        usuario_nome: user?.nome,
+        perfil: user?.role,
+        timestamp: now,
+        comentario: updates.comentario_colaborador || detalhes || null,
+      });
+
+      if (updates.status || detalhes) {
+        addAdminLog(`Atualização Automática: ${acao}`, `ID: ${id}`);
+      }
+    } catch (e) {
+      toast.error("Erro ao sincronizar com o banco de dados.");
+      console.error(e);
     }
   };
 
+  const handleUpdatePendencia = (id: string, updates: Partial<Pendencia>) => {
+    let actionStr = "editada";
+    if (updates.status === "Corrigida") actionStr = "corrigida";
+    if (updates.status === "OK") actionStr = "validada";
+    if (updates.status === "Pendente") actionStr = "reaberta";
+    if (updates.prioridade && !updates.status) actionStr = "prioridade_alterada";
+    
+    executeUpdateAndHistory(id, updates, actionStr, updates.comentario_colaborador);
+  };
+
   const handleDeletePendencia = (id: string, motivo: string) => {
-    handleUpdatePendencia(id, { isDeleted: true });
-    addAdminLog("Exclusão de Pendência", `Pendência ${id} foi excluída. Motivo: ${motivo}`);
+    executeUpdateAndHistory(id, { isDeleted: true, status: "Ignorada" }, "excluida", motivo);
+    addAdminLog("Exclusão de Pendência", `Pendência ${id} excluída. Motivo: ${motivo}`);
+    toast.success("Pendência excluída do painel.");
   };
 
   const generateFingerprint = (razaoSocial: string, linha: number, tipo: TipoImplantacao): string => {
@@ -82,106 +235,171 @@ const Index = () => {
       .replace(/\s+/g, "_") + `_${linha}_${tipo.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")}`;
   };
 
-  const handleCreatePendencia = (data: any) => {
+  const handleCreatePendencia = async (data: any) => {
     const now = new Date().toISOString();
     const fingerprint = generateFingerprint(data.razao_social, data.linha_planilha, data.tipo_implantacao);
-    const newPendencia: Pendencia = {
-      id: `PND-${String(pendencias.length + 1).padStart(3, "0")}`,
-      colaborador: data.colaborador,
+    
+    const colabTarget = users.find(u => u.nome === data.colaborador);
+
+    const newPendenciaData = {
+      colaborador_id: colabTarget ? (colabTarget.uid || colabTarget.id) : "sem_id",
+      colaborador_nome: data.colaborador,
       data_vigencia: data.data_vigencia,
       status: "Pendente",
       prioridade: data.prioridade,
-      pendencias: [],
+      itens_pendentes: [], 
       texto_pendencia: data.texto_pendencia,
       origem: "Manual",
-      ultima_atualizacao: now,
+      criado_em: now,
+      atualizado_em: now,
       razao_social: data.razao_social,
       linha_planilha: data.linha_planilha,
       tipo_implantacao: data.tipo_implantacao,
       fingerprint,
       erros: data.erros || [],
-      historico: [
-        { id: `h-${Date.now()}`, acao: "Pendência criada manualmente", usuario: user!.nome, dataHora: now },
-      ],
+      isDeleted: false,
     };
-    setPendencias((prev) => [newPendencia, ...prev]);
-    addAdminLog("Criação de Pendência Manual", `Pendência ${newPendencia.id} criada para o colaborador ${data.colaborador}.`);
+
+    try {
+       const docRef = await addDoc(collection(db, "pendencias"), newPendenciaData);
+       await addDoc(collection(db, `pendencias/${docRef.id}/historico`), {
+          acao: "criada",
+          usuario_id: user?.id,
+          usuario_nome: user?.nome,
+          perfil: user?.role,
+          timestamp: now,
+          comentario: "Pendência inserida manualmente"
+       });
+       addAdminLog("Criação de Pendência Manual", `Criada para ${data.colaborador}.`);
+       toast.success("Pendência criada com sucesso.");
+    } catch (e) {
+       toast.error("Erro ao criar pendência.");
+       console.error(e);
+    }
   };
+
 
   const handleRefreshData = async () => {
     setIsRefreshing(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      toast.success("Dados atualizados com sucesso! O backend reprocessou a planilha.");
-    } catch {
-      toast.error("Erro ao atualizar dados. Tente novamente.");
-    } finally {
+    setTimeout(() => {
       setIsRefreshing(false);
+      toast.success("Dados sincronizados com o servidor.");
+    }, 1500);
+  };
+
+  const handleSendEmailToBackend = (prazo: number) => {
+    toast.success(`E-mails de alerta disparados. (Prazo configurado: ${prazo} dias)`);
+  };
+
+  // Gestão Auth Mapeada no Firestore
+  const handleAddUser = async (newUser: Omit<User, "id">) => {
+    try {
+      const normalized = newUser.email.toLowerCase().trim();
+      // Cadastro na nova coleção de pré-cadastros
+      await setDoc(doc(db, "pre_cadastros", normalized), {
+        nome: newUser.nome,
+        email: normalized,
+        role: newUser.role,
+        status: "ativo",
+        criado_em: serverTimestamp(),
+        atualizado_em: serverTimestamp()
+      });
+      addAdminLog("Cadastro de Colaborador", `${newUser.nome} (${newUser.email}) foi pré-autorizado.`);
+      toast.success("Colaborador pré-autorizado no sistema.");
+    } catch(e) {
+      console.error("Erro ao pré-autorizar colaborador:", e);
+      toast.error("Erro ao pré-autorizar colaborador.");
     }
   };
 
-  // Gestão de Colaboradores (Admin)
-  const handleAddUser = (newUserProps: Omit<User, "id">) => {
-    const newId = `u-${Date.now()}`;
-    const newUser: User = { ...newUserProps, id: newId };
-    setUsers(prev => [...prev, newUser]);
-    addAdminLog("Colaborador Adicionado", `O colaborador ${newUser.nome} (${newUser.role}) foi criado.`);
-    toast.success("Colaborador registrado com sucesso.");
+  const handleEditUser = async (id: string, updates: Partial<User>) => {
+    try {
+       // Atualiza em pre_cadastros
+       await updateDoc(doc(db, "pre_cadastros", id), { 
+         ...updates, 
+         atualizado_em: serverTimestamp() 
+       });
+       
+       // Se o usuário já ativou a conta, atualizar também o registro definitivo usuarios/{uid}
+       const userDoc = users.find(u => u.id === id || u.email === id);
+       if (userDoc?.uid) {
+         await updateDoc(doc(db, "usuarios", userDoc.uid), {
+           ...updates,
+           atualizado_em: serverTimestamp()
+         });
+       }
+
+       addAdminLog("Edição de Colaborador", `O colaborador ${id} foi alterado.`);
+       toast.success("Dados do colaborador atualizados.");
+    } catch(e) {
+       console.error("Erro ao editar colaborador:", e);
+       toast.error("Erro ao editar colaborador.");
+    }
   };
 
-  const handleEditUser = (id: string, updates: Partial<User>) => {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
-    addAdminLog("Edição de Colaborador", `O colaborador ID ${id} sofreu edições cadastrais.`);
-    toast.success("Colaborador atualizado.");
-  };
-
-  const handleDeleteUser = (id: string) => {
-    const userToDelete = users.find(u => u.id === id);
+  const handleDeleteUser = async (id: string) => {
+    const userToDelete = users.find(u => u.id === id || u.email === id);
     if (!userToDelete) return;
 
-    // Validar se tem pendências ativas
-    const hasActivePendencias = activePendencias.some(p => p.colaborador === userToDelete.nome && p.status === "Pendente");
-    if (hasActivePendencias) {
-      toast.error("Não é possível excluir. Este colaborador tem pendências ativas.");
-      return;
-    }
+    try {
+      // Inativa em pre_cadastros
+      await updateDoc(doc(db, "pre_cadastros", id), { 
+        status: "inativo",
+        atualizado_em: serverTimestamp()
+      });
+      
+      // Inativa em usuarios se existir
+      if (userToDelete.uid) {
+        await updateDoc(doc(db, "usuarios", userToDelete.uid), { 
+          status: "inativo",
+          atualizado_em: serverTimestamp()
+        });
+      }
 
-    setUsers(prev => prev.filter(u => u.id !== id));
-    addAdminLog("Exclusão de Colaborador", `O colaborador ${userToDelete.nome} foi excluído do sistema.`);
-    toast.success("Colaborador removido com sucesso.");
+      addAdminLog("Inativação de Colaborador", `${userToDelete.nome} foi desativado.`);
+      toast.success("Colaborador desativado.");
+    } catch(e) {
+      console.error("Erro na inativação:", e);
+      toast.error("Erro na inativação.");
+    }
   };
 
-  if (!user) {
-    // Modify login to check our updated `users` payload
-    const handleLoginCheck = (userLoggingIn: User) => {
-      const u = users.find(existing => existing.nome === userLoggingIn.nome); // Simplification since full login is mock
-      if (u && u.status === "inativo") {
-        toast.error("Este usuário está inativo e não pode acessar o sistema.");
-        return;
-      }
-      setUser(u || userLoggingIn);
-    }
-    return <LoginScreen onLogin={handleLoginCheck} />;
+  if (!user && !loading) {
+    return <LoginScreen />;
   }
 
-  // Divisão visual
-  const pendenciasEmAndamento = filteredPendencias.filter(p => p.status !== "OK");
-  const pendenciasFinalizadas = filteredPendencias.filter(p => p.status === "OK");
+  // Enquanto carrega o carregamento de perfil ou se o perfil está vazio mas autenticado (erro)
+  if (loading || (!user && auth.currentUser)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw className="h-10 w-10 text-primary animate-spin" />
+          <p className="text-sm text-muted-foreground animate-pulse">Carregando perfil corporativo...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const pendenciasEmAndamento = filteredPendencias.filter(p => (p.status?.toLowerCase() || "") !== "ok" && (p.status?.toLowerCase() || "") !== "ignorada");
+  const pendenciasFinalizadas = filteredPendencias.filter(p => (p.status?.toLowerCase() || "") === "ok" || (p.status?.toLowerCase() || "") === "ignorada");
+  const colabsComPendenciasUnicos = new Set(filteredPendencias.filter(p => (p.status?.toLowerCase() || "") === "pendente").map(p => p.colaborador_nome)).size;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <Shield className="h-4 w-4 text-primary-foreground" />
+    <div className="min-h-screen bg-[#F7F8FA]">
+      <header className="bg-[#1D2E5D] sticky top-0 z-10 shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 bg-white rounded-md flex items-center justify-center overflow-hidden p-1 shadow-inner">
+              <Shield className="h-6 w-6 text-[#1D2E5D]" />
             </div>
-            <h1 className="text-lg font-bold text-foreground tracking-tight">Ops Hub <span className="text-muted-foreground font-normal">| Controle de Pendências</span></h1>
+            <div className="flex flex-col">
+              <h1 className="text-lg font-bold text-white tracking-tight leading-none uppercase italic">SulAmérica</h1>
+              <span className="text-[10px] text-white/70 font-medium uppercase tracking-[0.2em] mt-1">Operações Corporativas</span>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             {user.role === "admin" && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <AdminLogsPanel logs={adminLogs} />
                 <CollaboratorManagerDialog
                   users={users}
@@ -191,63 +409,179 @@ const Index = () => {
                 />
               </div>
             )}
-            <div className="h-4 w-px bg-border mx-1"></div>
-            <div className="flex items-center gap-2 text-sm">
-              {user.role === "admin" ? (
-                <Shield className="h-4 w-4 text-primary" />
-              ) : (
-                <UserCheck className="h-4 w-4 text-accent" />
-              )}
-              <span className="font-medium text-foreground">{user.nome}</span>
+            <div className="h-6 w-px bg-white/20 mx-1"></div>
+            <div className="flex items-center gap-3 text-sm text-white">
+              <div className="flex flex-col items-end mr-1">
+                <span className="font-semibold">{user.nome}</span>
+                <span className="text-[10px] text-white/60 uppercase font-bold tracking-tighter">
+                  {user.role === "admin" ? "Administrador" : user.role === "socio" ? "Sócio" : "Colaborador"}
+                </span>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => logout()} 
+                className="text-white hover:bg-white/10 h-9 w-9 rounded-full"
+              >
+                <LogOut className="h-5 w-5" />
+              </Button>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => { setUser(null); setFilters(emptyFilters); }} className="text-muted-foreground hover:text-foreground">
-              <LogOut className="h-4 w-4" />
-            </Button>
           </div>
         </div>
       </header>
 
-      {/* Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h2 className="text-2xl font-bold text-foreground tracking-tight">
-              {user.role === "admin" ? "Dashboard Geral" : "Minhas Pendências"}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {user.role === "admin"
-                ? "Visão completa de todas as pendências operacionais"
-                : "Acompanhe e corrija as pendências designadas a você."}
-            </p>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
+        
+        {listenerError && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md shadow-sm mb-4">
+             <div className="flex items-center border-b border-red-200 pb-2 mb-2">
+                 <ShieldAlert className="h-5 w-5 text-red-500 mr-2" />
+                 <h3 className="text-red-800 font-bold">Falha Crítica de Regra de Segurança (Permission Denied)</h3>
+             </div>
+             <p className="text-red-700 text-sm">{listenerError}</p>
+             <p className="text-red-600 text-xs mt-2 italic">Dica: Seus dados ainda existem no provedor, mas a interface foi barrada pela camada de segurança do Firestore. Rodar diagnóstico acima para mais detalhes.</p>
           </div>
-          {user.role === "admin" && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefreshData}
-                disabled={isRefreshing}
-                className="bg-card"
-              >
-                <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? "animate-spin" : ""}`} />
-                {isRefreshing ? "Atualizando..." : "Atualizar Dados (ERP)"}
-              </Button>
-              <CreatePendenciaDialog colaboradores={colaboradores} onSubmit={handleCreatePendencia} />
+        )}
+
+        <div className="space-y-4">
+          <div className="text-[11px] text-[#737D9A] flex items-center gap-2 uppercase font-bold tracking-widest">
+            <span className="hover:text-[#1D2E5D] cursor-pointer transition-colors">Início</span>
+            <span className="text-[#D9CDCD]">/</span>
+            <span className="text-[#1D2E5D]">Painel de Pendências</span>
+          </div>
+          
+          <div className="bg-white p-8 rounded-xl border border-[#D9CDCD] shadow-sm flex items-center justify-between flex-wrap gap-6 overflow-hidden relative group">
+            <div className="absolute top-0 left-0 w-2 h-full bg-[#F68B2C]" />
+            <div className="relative z-10">
+              <h2 className="text-2xl md:text-3xl font-black text-[#1D2E5D] tracking-tight uppercase">
+                Controle de Pendências <span className="text-[#F68B2C]">Operacionais</span>
+              </h2>
+              <p className="text-sm text-[#737D9A] mt-3 max-w-2xl font-medium">
+                {user.role === "admin"
+                  ? "Gestão inteligente e corporativa de todas as pendências da operação."
+                  : user.role === "socio" 
+                    ? "Acompanhamento macro, KPIs executivos e governança operacional."
+                    : "Acompanhe e registre a resolução das pendências designadas a sua área."}
+              </p>
             </div>
-          )}
+            
+            <div className="flex items-center gap-3 relative z-10">
+              {user.role === "admin" && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefreshData}
+                    disabled={isRefreshing}
+                    className="bg-white border-[#1D2E5D] text-[#1D2E5D] hover:bg-[#F7F8FA] font-bold py-5 px-6 shadow-none"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+                    {isRefreshing ? "Atualizando..." : "Sincronizar Cloud"}
+                  </Button>
+                  <CreatePendenciaDialog 
+                    colaboradores={colaboradores} 
+                    onSubmit={handleCreatePendencia} 
+                  />
+                </>
+              )}
+              {user.role === "socio" && (
+                <SendEmailDialog pendencias={filteredPendencias} onConfirm={handleSendEmailToBackend} />
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Stats */}
-        <StatsCards pendencias={user.role === "admin" ? activePendencias : activePendencias.filter((p) => p.colaborador === user.nome)} />
-
-        {/* Filters */}
-        {user.role === "admin" && (
+        {(user.role === "admin" || user.role === "socio") && (
           <FilterBar filters={filters} onFiltersChange={setFilters} colaboradores={colaboradores} />
         )}
 
-        {/* Views de Tabela */}
-        {user.role === "admin" ? (
-          <Tabs defaultValue="em-andamento" className="w-full">
+        {user.role === "socio" ? (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <Card className="border border-[#D9CDCD] shadow-sm bg-white overflow-hidden group transition-all duration-300 hover:border-[#1D2E5D]/30 hover:translate-y-[-2px]">
+              <CardContent className="p-5">
+                <div className="flex flex-col gap-4">
+                  <div className="p-2 rounded-lg w-fit bg-[#F7F8FA] transition-colors">
+                    <Clock className="h-5 w-5 text-[#1D2E5D]" strokeWidth={2.5} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-2xl font-black text-[#1D2E5D] tracking-tight">{filteredPendencias.length}</p>
+                    <p className="text-[10px] font-bold text-[#737D9A] uppercase tracking-widest">Total (Mapeadas)</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border border-[#D9CDCD] shadow-sm bg-white overflow-hidden group transition-all duration-300 hover:border-[#1D2E5D]/30 hover:translate-y-[-2px]">
+              <CardContent className="p-5">
+                <div className="flex flex-col gap-4">
+                  <div className="p-2 rounded-lg w-fit bg-[#FEF2F2] transition-colors">
+                    <AlertCircle className="h-5 w-5 text-[#EF482B]" strokeWidth={2.5} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-2xl font-black text-[#EF482B] tracking-tight">{filteredPendencias.filter(p => p.status?.toLowerCase() === 'pendente').length}</p>
+                    <p className="text-[10px] font-bold text-[#737D9A] uppercase tracking-widest">Em Aberto</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border border-[#D9CDCD] shadow-sm bg-white overflow-hidden group transition-all duration-300 hover:border-[#1D2E5D]/30 hover:translate-y-[-2px]">
+              <CardContent className="p-5">
+                <div className="flex flex-col gap-4">
+                  <div className="p-2 rounded-lg w-fit bg-[#EFF6FF] transition-colors">
+                    <CheckCircle2 className="h-5 w-5 text-[#1D2E5D]" strokeWidth={2.5} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-2xl font-black text-[#1D2E5D] tracking-tight">{filteredPendencias.filter(p => p.status?.toLowerCase() === 'corrigida').length}</p>
+                    <p className="text-[10px] font-bold text-[#737D9A] uppercase tracking-widest">Corrigidas</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border border-[#D9CDCD] shadow-sm bg-white overflow-hidden group transition-all duration-300 hover:border-[#1D2E5D]/30 hover:translate-y-[-2px]">
+              <CardContent className="p-5">
+                <div className="flex flex-col gap-4">
+                  <div className="p-2 rounded-lg w-fit bg-[#F0FDF4] transition-colors">
+                    <CheckCircle2 className="h-5 w-5 text-[#166534]" strokeWidth={2.5} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-2xl font-black text-[#166534] tracking-tight">{filteredPendencias.filter(p => p.status?.toLowerCase() === 'ok').length}</p>
+                    <p className="text-[10px] font-bold text-[#737D9A] uppercase tracking-widest">Validadas (OK)</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border border-[#D9CDCD] shadow-sm bg-white overflow-hidden group transition-all duration-300 hover:border-[#1D2E5D]/30 hover:translate-y-[-2px]">
+              <CardContent className="p-5">
+                <div className="flex flex-col gap-4">
+                  <div className="p-2 rounded-lg w-fit bg-[#F7F8FA] transition-colors">
+                    <UsersIcon className="h-5 w-5 text-[#1D2E5D]" strokeWidth={2.5} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-2xl font-black text-[#1D2E5D] tracking-tight">{colabsComPendenciasUnicos}</p>
+                    <p className="text-[10px] font-bold text-[#737D9A] uppercase tracking-widest">Equipe P/ Atuar</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
+            <div className="w-full">
+              <StatsCards pendencias={user.role !== "colaborador" ? activePendencias : activePendencias.filter((p) => p.colaborador_id === user.id)} />
+            </div>
+          </div>
+        )}
+
+        {/* Gráficos para Sócio */}
+        {user.role === "socio" && (
+          <div className="mt-8 grid grid-cols-1 gap-8">
+            <div className="w-full">
+              <SocioCharts pendencias={filteredPendencias} />
+            </div>
+          </div>
+        )}
+
+        {(user.role === "admin" || user.role === "socio") ? (
+          <Tabs defaultValue="em-andamento" className="w-full mt-6">
             <TabsList className="mb-4 bg-muted/50 border">
               <TabsTrigger value="em-andamento" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 Em Andamento
@@ -265,6 +599,7 @@ const Index = () => {
                 userName={user.nome}
                 onUpdatePendencia={handleUpdatePendencia}
                 onDeletePendencia={handleDeletePendencia}
+                colaboradores={colaboradores}
               />
             </TabsContent>
             <TabsContent value="finalizadas" className="m-0 mt-4 border-none p-0 outline-none">
@@ -274,16 +609,17 @@ const Index = () => {
                 userName={user.nome}
                 onUpdatePendencia={handleUpdatePendencia}
                 onDeletePendencia={handleDeletePendencia}
+                colaboradores={colaboradores}
               />
             </TabsContent>
           </Tabs>
         ) : (
-          <div className="space-y-12">
+          <div className="space-y-12 mt-6">
             <div>
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                  Pendências Abertas
+                  Pendências Abertas (Realtime DB)
                 </h3>
                 <p className="text-sm text-muted-foreground">Requerem sua atenção imediata para correção.</p>
               </div>
@@ -293,6 +629,7 @@ const Index = () => {
                   userRole={user.role}
                   userName={user.nome}
                   onUpdatePendencia={handleUpdatePendencia}
+                  colaboradores={colaboradores}
                 />
               </div>
             </div>
@@ -311,6 +648,7 @@ const Index = () => {
                   userRole={user.role}
                   userName={user.nome}
                   onUpdatePendencia={handleUpdatePendencia}
+                  colaboradores={colaboradores}
                 />
               </div>
             </div>

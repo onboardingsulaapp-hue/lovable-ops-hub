@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pendencia, Prioridade } from "@/types/pendencia";
+import { Pendencia, Prioridade, UserRole } from "@/types/pendencia";
 import { Badge } from "@/components/ui/badge";
 import { X, Plus, Trash2 } from "lucide-react";
 
@@ -14,11 +14,14 @@ interface EditPendenciaDialogProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (id: string, updates: Partial<Pendencia>) => void;
   onDelete: (id: string, motivo: string) => void;
+  colaboradores?: { id: string; nome: string }[];
+  userRole?: UserRole;
 }
 
-export function EditPendenciaDialog({ pendencia, open, onOpenChange, onSubmit, onDelete }: EditPendenciaDialogProps) {
+export function EditPendenciaDialog({ pendencia, open, onOpenChange, onSubmit, onDelete, colaboradores = [], userRole }: EditPendenciaDialogProps) {
   const [texto, setTexto] = useState("");
   const [prioridade, setPrioridade] = useState<Prioridade>("Média");
+  const [colaborador, setColaborador] = useState("");
   const [erros, setErros] = useState<string[]>([]);
   const [novoErro, setNovoErro] = useState("");
   
@@ -30,7 +33,8 @@ export function EditPendenciaDialog({ pendencia, open, onOpenChange, onSubmit, o
     if (open && pendencia) {
       setTexto(pendencia.texto_pendencia);
       setPrioridade(pendencia.prioridade);
-      setErros([...pendencia.erros]);
+      setColaborador(pendencia.colaborador_nome);
+      setErros([...(pendencia.erros || [])]);
       setNovoErro("");
       setShowDelete(false);
       setMotivoDelete("");
@@ -51,7 +55,11 @@ export function EditPendenciaDialog({ pendencia, open, onOpenChange, onSubmit, o
 
   const handleSubmit = () => {
     if (!pendencia) return;
-    onSubmit(pendencia.id, { texto_pendencia: texto, prioridade, erros });
+    const updates: Partial<Pendencia> = { texto_pendencia: texto, prioridade, erros };
+    if (userRole === "admin" && colaborador !== pendencia.colaborador_nome && colaborador) {
+      (updates as any).colaborador = colaborador;
+    }
+    onSubmit(pendencia.id, updates);
     onOpenChange(false);
   };
 
@@ -104,6 +112,22 @@ export function EditPendenciaDialog({ pendencia, open, onOpenChange, onSubmit, o
                 </SelectContent>
               </Select>
             </div>
+
+            {userRole === "admin" && (
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1 block">Colaborador Responsável</label>
+                <Select value={colaborador} onValueChange={(v) => setColaborador(v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {colaboradores.map((colab) => (
+                      <SelectItem key={colab.id} value={colab.nome}>{colab.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div>
               <label className="text-sm font-medium text-foreground mb-1 block">Erros / Inconsistências</label>
