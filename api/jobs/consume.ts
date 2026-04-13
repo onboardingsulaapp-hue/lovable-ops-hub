@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { adminDb, admin } from '../_utils/firebase-admin';
-import { cleanRow, processRow } from '../_utils/rules-engine';
+import { admin, getFirestore } from '../_utils/firebase-admin.js';
+import { cleanRow, processRow } from '../_utils/rules-engine.js';
 import { parse } from 'csv-parse/sync';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -11,6 +11,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const adminDb = getFirestore();
+    
     // 2. Buscar 1 job pendente (queued)
     const jobsRef = adminDb.collection('jobs');
     const q = await jobsRef
@@ -109,6 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     // Tentar marcar o job como falho (se possível)
     try {
+        const adminDb = getFirestore();
         const jobsRef = adminDb.collection('jobs');
         const q = await jobsRef
           .where('tipo', '==', 'sync_pendencias_csv')

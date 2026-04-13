@@ -1,6 +1,6 @@
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { adminAuth, adminDb, admin } from '../_utils/firebase-admin';
+import { admin, getFirestore, verifyFirebaseIdToken } from '../_utils/firebase-admin.js';
 
 export default async function handler(
   request: VercelRequest,
@@ -13,25 +13,11 @@ export default async function handler(
       body,
       request,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
-        // ... (resto igual)
         const payload = JSON.parse(clientPayload || '{}');
         const idToken = payload.idToken;
 
-        if (!idToken) {
-          throw new Error('Missing ID Token');
-        }
-
-        const decodedToken = await adminAuth.verifyIdToken(idToken);
-        const uid = decodedToken.uid;
-
-        const userSnap = await adminDb.collection('usuarios').doc(uid).get();
-        const userData = userSnap.data();
-        const role = userData?.role || userData?.perfil;
-        const isAtivo = (userData?.status === 'ativo') || (userData?.ativo === true);
-
-        if (role !== 'admin' || !isAtivo) {
-          throw new Error('Forbidden: Admin access required');
-        }
+        // Validar token e perfil
+        const uid = await verifyFirebaseIdToken(`Bearer ${idToken}`);
 
         return {
           allowedContentTypes: ['text/csv', 'application/vnd.ms-excel'],
@@ -44,6 +30,7 @@ export default async function handler(
         const { uid } = JSON.parse(tokenPayload || '{}');
 
         try {
+          const adminDb = getFirestore();
           const jobId = `job_${Date.now()}_blob`;
           await adminDb.collection('jobs').doc(jobId).set({
             tipo: 'sync_pendencias_csv',
@@ -65,7 +52,7 @@ export default async function handler(
     });
 
     return response.status(200).json(jsonResponse);
-  } catch (error) {
-    return response.status(400).json({ error: (error as Error).message });
+  } catch (error: any) {
+    return response.status(error.status || 400).json({ error: (error as Error).message });
   }
 }

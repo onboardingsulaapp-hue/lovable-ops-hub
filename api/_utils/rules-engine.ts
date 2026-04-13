@@ -1,4 +1,4 @@
-import { adminDb, admin } from './firebase-admin';
+import { adminDb, admin } from './firebase-admin.js';
 import rulesJson from '../../src/config/rules_validacao_v1.json';
 import collaboratorsJson from '../../src/config/colaboradores_map.json';
 import aliasesJson from '../../src/config/column_aliases.json';
