@@ -21,3 +21,5 @@ export const db = initializeFirestore(app, {
 }, "default");
 
 console.log("🚀 Firestore inicializado com banco ID: 'default'");
+
+

@@ -57,3 +57,45 @@ export interface User {
   atualizado_em?: any;
 }
 
+// ========================
+// JOB (Fila de Tarefas)
+// ========================
+export type JobStatus = "queued" | "running" | "success" | "failed";
+export type JobType = "sync_pendencias_csv";
+
+export interface JobFileRef {
+  path?: string;
+  url?: string;
+  pathname?: string;
+  name?: string;
+  size?: number;
+  contentType?: string;
+}
+
+export interface SyncJobResult {
+  linhas_total: number;
+  linhas_gate: number;
+  linhas_com_pendencia: number;
+  ignoradas_por_status: number;
+  criadas: number;
+  atualizadas: number;
+  nao_mapeados: string[];
+  amostras: string[];
+}
+
+export interface Job {
+  id: string;
+  tipo: JobType;
+  status: JobStatus;
+  requested_by: string;
+  requested_by_role: string;
+  requested_at: any;
+  file?: JobFileRef;
+  params?: Record<string, any>;
+  result?: SyncJobResult;
+  error?: string;
+  started_at?: any;
+  finished_at?: any;
+}
+
+

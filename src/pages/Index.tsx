@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import UploadCsvPanel from "@/components/jobs/UploadCsvPanel";
 import { Pendencia, User, UserRole, TipoImplantacao, AdminLog } from "@/types/pendencia";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -591,6 +592,11 @@ const Index = () => {
                 Finalizadas
                 <span className="ml-2 bg-muted-foreground/10 text-muted-foreground py-0.5 px-2 rounded-full text-xs">{pendenciasFinalizadas.length}</span>
               </TabsTrigger>
+              {user.role === "admin" && (
+                <TabsTrigger value="sincronizar" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                  🔄 Sincronizar CSV
+                </TabsTrigger>
+              )}
             </TabsList>
             <TabsContent value="em-andamento" className="m-0 mt-4 border-none p-0 outline-none">
               <PendenciaTable
@@ -612,6 +618,20 @@ const Index = () => {
                 colaboradores={colaboradores}
               />
             </TabsContent>
+            {user.role === "admin" && (
+              <TabsContent value="sincronizar" className="m-0 mt-4 border-none p-0 outline-none">
+                <div
+                  style={{
+                    background: "#0f172a",
+                    borderRadius: "12px",
+                    padding: "24px",
+                    minHeight: "300px",
+                  }}
+                >
+                  <UploadCsvPanel />
+                </div>
+              </TabsContent>
+            )}
           </Tabs>
         ) : (
           <div className="space-y-12 mt-6">
