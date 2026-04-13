@@ -1,6 +1,7 @@
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { admin, getFirestore, verifyFirebaseIdToken } from '../_utils/firebase-admin.js';
+import { getFirestore, verifyFirebaseIdToken } from '../_utils/firebase-admin.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export default async function handler(
   request: VercelRequest,
@@ -24,7 +25,7 @@ export default async function handler(
         const payload = JSON.parse(clientPayload || '{}');
         const idToken = payload.idToken;
 
-        // Validar token e perfil admin através do helper robusto
+        // Validar token e perfil admin através do helper modular robusto
         const uid = await verifyFirebaseIdToken(`Bearer ${idToken}`);
 
         return {
@@ -38,14 +39,14 @@ export default async function handler(
         const { uid } = JSON.parse(tokenPayload || '{}');
 
         try {
-          const adminDb = getFirestore();
+          const db = getFirestore();
           const jobId = `job_${Date.now()}_blob`;
-          await adminDb.collection('jobs').doc(jobId).set({
+          await db.collection('jobs').doc(jobId).set({
             tipo: 'sync_pendencias_csv',
             status: 'queued',
             requested_by: uid,
             requested_by_role: 'Admin',
-            requested_at: admin.firestore.FieldValue.serverTimestamp(),
+            requested_at: FieldValue.serverTimestamp(),
             file: {
               url: blob.url,
               pathname: blob.pathname,

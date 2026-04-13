@@ -1,4 +1,6 @@
-import * as admin from 'firebase-admin';
+import { initializeApp, getApps, getApp, cert } from 'firebase-admin/app';
+import { getFirestore as getFirestoreAdmin } from 'firebase-admin/firestore';
+import { getAuth as getAuthAdmin } from 'firebase-admin/auth';
 
 /**
  * Obtém a configuração da Service Account das variáveis de ambiente com suporte a Base64
@@ -38,36 +40,41 @@ function getServiceAccountFromEnv(): any {
 }
 
 /**
- * Inicializa e retorna o Admin App de forma singleton
+ * Inicializa e retorna o Admin App de forma singleton utilizando o SDK modular
  */
 export function getAdminApp() {
-  const apps = admin.apps || []; // Garantir que acessamos de forma segura
+  const apps = getApps();
   
   if (apps.length === 0) {
-    console.log('[Firebase Admin] Inicializando nova instância...');
+    console.log('[Firebase Admin] Inicializando nova instância modular...');
     try {
       const config = getServiceAccountFromEnv();
-      admin.initializeApp({
-        credential: admin.credential.cert(config),
+      return initializeApp({
+        credential: cert(config),
       });
-      console.log('[Firebase Admin] Inicializado com sucesso para o projeto:', config.project_id);
     } catch (error: any) {
-      console.error('[Firebase Admin] Falha crítica na inicialização:', error.message);
+      console.error('[Firebase Admin] Falha crítica na inicialização modular:', error.message);
       throw error;
     }
   }
   
-  const app = admin.app();
-  if (!app) throw new Error('[Firebase Admin] Falha ao recuperar instância após inicialização.');
-  return app;
+  return getApp();
 }
 
 /**
  * Retorna a instância do Firestore assegurando inicialização
  */
 export function getFirestore() {
-  getAdminApp();
-  return admin.firestore();
+  const app = getAdminApp();
+  return getFirestoreAdmin(app);
+}
+
+/**
+ * Retorna a instância do Auth assegurando inicialização
+ */
+export function getAuth() {
+  const app = getAdminApp();
+  return getAuthAdmin(app);
 }
 
 /**
@@ -84,8 +91,8 @@ export async function verifyFirebaseIdToken(authorizationHeader: string | undefi
   const idToken = authorizationHeader.split('Bearer ')[1];
   
   try {
-    getAdminApp();
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const auth = getAuth();
+    const decodedToken = await auth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
 
     const profile = await getUserProfile(uid);
@@ -124,8 +131,3 @@ export async function getUserProfile(uid: string) {
 
     return { uid, role, status };
 }
-
-// Exportações legadas
-export const adminDb = getFirestore();
-export const adminAuth = admin.auth();
-export { admin };

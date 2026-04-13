@@ -1,5 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { admin, getFirestore } from '../_utils/firebase-admin.js';
+import { getFirestore } from '../_utils/firebase-admin.js';
+import { FieldValue } from 'firebase-admin/firestore';
 import { cleanRow, processRow } from '../_utils/rules-engine.js';
 import { parse } from 'csv-parse/sync';
 
@@ -15,10 +16,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const adminDb = getFirestore();
+    const db = getFirestore();
     
     // 2. Buscar 1 job pendente (queued)
-    const jobsRef = adminDb.collection('jobs');
+    const jobsRef = db.collection('jobs');
     const q = await jobsRef
       .where('tipo', '==', 'sync_pendencias_csv')
       .where('status', '==', 'queued')
@@ -43,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 3. Marcar como 'running'
     await jobDoc.ref.update({
       status: 'running',
-      started_at: admin.firestore.FieldValue.serverTimestamp()
+      started_at: FieldValue.serverTimestamp()
     });
 
     console.log(`[Worker] Processing Job ${jobId} with URL ${blobUrl}`);
@@ -104,7 +105,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await jobDoc.ref.update({
       status: 'success',
       result,
-      finished_at: admin.firestore.FieldValue.serverTimestamp()
+      finished_at: FieldValue.serverTimestamp()
     });
 
     console.log(`[Worker] Job ${jobId} completed successfully.`);

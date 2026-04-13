@@ -1,5 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { admin, getFirestore, verifyFirebaseIdToken } from './_utils/firebase-admin.js';
+import { getFirestore, verifyFirebaseIdToken } from './_utils/firebase-admin.js';
+import { FieldValue } from 'firebase-admin/firestore';
 import { cleanRow, processRow } from './_utils/rules-engine.js';
 import { parse } from 'csv-parse';
 import Busboy from 'busboy';
@@ -33,19 +34,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
     }
 
-    const adminDb = getFirestore();
+    const db = getFirestore();
 
     // 2. Setup do Job no Firestore (Rastreabilidade)
     const jobId = `job_${Date.now()}_direct`;
-    const jobRef = adminDb.collection('jobs').doc(jobId);
+    const jobRef = db.collection('jobs').doc(jobId);
 
     await jobRef.set({
       tipo: 'sync_pendencias_csv',
       status: 'running',
       requested_by: uid,
       requested_by_role: 'Admin',
-      requested_at: admin.firestore.FieldValue.serverTimestamp(),
-      started_at: admin.firestore.FieldValue.serverTimestamp(),
+      requested_at: FieldValue.serverTimestamp(),
+      started_at: FieldValue.serverTimestamp(),
       file: {
         name: 'Direct Upload',
         size: parseInt(req.headers['content-length'] || '0'),
@@ -107,7 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await jobRef.update({
             status: 'success',
             result,
-            finished_at: admin.firestore.FieldValue.serverTimestamp()
+            finished_at: FieldValue.serverTimestamp()
           });
 
           res.status(200).json({ ok: true, jobId, status: 'success', result });
@@ -119,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await jobRef.update({
             status: 'failed',
             error: err.message,
-            finished_at: admin.firestore.FieldValue.serverTimestamp()
+            finished_at: FieldValue.serverTimestamp()
           });
           res.status(500).json({ 
             ok: false, 

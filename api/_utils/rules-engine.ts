@@ -1,4 +1,5 @@
-import { adminDb, admin } from './firebase-admin.js';
+import { getFirestore } from './firebase-admin.js';
+import { FieldValue } from 'firebase-admin/firestore';
 import { loadConfigJson } from './load-json.js';
 
 // Carregamento assíncrono das configurações (Top-level await)
@@ -123,6 +124,8 @@ export function resolveCollaborator(name: string): { id: string | null, mapped: 
  * Processamento principal de uma linha
  */
 export async function processRow(row: any, lineNum: number, adminUid: string) {
+  const db = getFirestore();
+  
   // Gate
   if (!passesGate(row)) return { action: 'ignored_by_gate' };
 
@@ -142,7 +145,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
 
   // Fingerprint
   const fp = generateFingerprint(row);
-  const docRef = adminDb.collection('pendencias').doc(fp);
+  const docRef = db.collection('pendencias').doc(fp);
   const docSnap = await docRef.get();
   const before = docSnap.exists ? docSnap.data() : null;
 
@@ -162,7 +165,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     texto_pendencia: texto,
     colaborador_id: collabId,
     colaborador_nome: representante,
-    atualizado_em: admin.firestore.FieldValue.serverTimestamp(),
+    atualizado_em: FieldValue.serverTimestamp(),
     linha_planilha: lineNum,
     linha_csv: row,
     tipo_implantacao: row["Produto"] || "Saúde" // Fallback seguro
@@ -171,7 +174,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   let action: 'criada' | 'editada' | 'sem_mudanca' = 'sem_mudanca';
 
   if (!docSnap.exists) {
-    payload.criado_em = admin.firestore.FieldValue.serverTimestamp();
+    payload.criado_em = FieldValue.serverTimestamp();
     await docRef.set(payload);
     action = 'criada';
   } else {
@@ -186,7 +189,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
       // Mesmo sem mudar itens, atualizamos timestamp e linha caso necessário, 
       // mas não registramos no histórico como mudança de conteúdo.
       await docRef.update({ 
-        atualizado_em: admin.firestore.FieldValue.serverTimestamp(),
+        atualizado_em: FieldValue.serverTimestamp(),
         linha_planilha: lineNum 
       });
       return { action: 'sem_mudanca', fp };
@@ -199,7 +202,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     usuario_id: "SYSTEM_CSV",
     usuario_nome: "Sincronizador Automático (Vercel)",
     perfil: "system",
-    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    timestamp: FieldValue.serverTimestamp(),
     comentario: "Sincronização via processamento de CSV.",
     antes: before,
     depois: payload
