@@ -49,8 +49,11 @@ export function getAdminApp() {
     console.log('[Firebase Admin] Inicializando nova instância modular...');
     try {
       const config = getServiceAccountFromEnv();
+      // Garantir que cert está sendo chamado corretamente como função do SDK modular
+      const credentialCert = cert(config);
+      
       return initializeApp({
-        credential: cert(config),
+        credential: credentialCert,
       });
     } catch (error: any) {
       console.error('[Firebase Admin] Falha crítica na inicialização modular:', error.message);
@@ -65,16 +68,26 @@ export function getAdminApp() {
  * Retorna a instância do Firestore assegurando inicialização
  */
 export function getFirestore() {
-  const app = getAdminApp();
-  return getFirestoreAdmin(app);
+  try {
+    const app = getAdminApp();
+    return getFirestoreAdmin(app);
+  } catch (error: any) {
+    console.error('[Firebase Firestore] Erro ao obter instância:', error.message);
+    throw error;
+  }
 }
 
 /**
  * Retorna a instância do Auth assegurando inicialização
  */
 export function getAuth() {
-  const app = getAdminApp();
-  return getAuthAdmin(app);
+  try {
+    const app = getAdminApp();
+    return getAuthAdmin(app);
+  } catch (error: any) {
+    console.error('[Firebase Auth] Erro ao obter instância:', error.message);
+    throw error;
+  }
 }
 
 /**
@@ -126,8 +139,11 @@ export async function getUserProfile(uid: string) {
     }
 
     const data = userSnap.data();
-    const role = data?.role || data?.perfil;
-    const status = (data?.status === 'ativo') || (data?.ativo === true) ? 'ativo' : 'inativo';
+    const role = data?.role || data?.perfil || 'vazio';
+    
+    // Verificação flexível de status
+    const status = (data?.status === 'ativo' || data?.ativo === true) ? 'ativo' : 'inativo';
 
     return { uid, role, status };
 }
+
