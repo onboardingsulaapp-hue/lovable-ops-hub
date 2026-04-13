@@ -1,0 +1,19 @@
+{
+    "header_detection": {
+        "mode": "starts_with",
+        "starts_with": "Carimbo de data/hora"
+    },
+    "delimiter": ",",
+    "encoding_try_order": [
+        "utf-8",
+        "iso-8859-1",
+        "latin-1"
+    ],
+    "required_header_fields_min": [
+        "Razão Social do Cliente",
+        "Produto",
+        "Status da Empresa",
+        "Inicio da Vigência de Contrato",
+        "Representante da Implantação"
+    ]
+}

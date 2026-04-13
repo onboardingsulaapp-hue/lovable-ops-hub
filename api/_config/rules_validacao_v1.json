@@ -1,0 +1,109 @@
+{
+    "version": 1,
+    "gate": {
+        "field": "Status da Empresa",
+        "allowed": [
+            "IMPLANTAÇÃO CONCLUÍDA COMPLETA",
+            "IMPLANTAÇÃO CONCLUÍDA COM PENDÊNCIA"
+        ]
+    },
+    "fingerprint": {
+        "fields": [
+            "Razão Social do Cliente",
+            "Produto",
+            "Inicio da Vigência de Contrato"
+        ]
+    },
+    "defaults": {
+        "prioridade": "Media",
+        "origem": "Automatica",
+        "status_when_pending": "Pendente",
+        "isDeleted": false
+    },
+    "required_fields": [
+        "Reunião Realizada",
+        "Atuação do Migrasas ?",
+        "Atuação do Nutea ?",
+        "Todos casos Finalizados ?",
+        "Criar Plano?",
+        "Data de envio Operação",
+        "Op 1ª Criica",
+        "Data - Liberação / Declinio / Devolução",
+        "Identificação do Book",
+        "Data do Envio do Book",
+        "Data do envio do e-mail de Liberação"
+    ],
+    "conditional_required": [
+        {
+            "if": {
+                "field": "Reunião Realizada",
+                "equals_any": [
+                    "SIM"
+                ]
+            },
+            "then_require": [
+                "Data da Reunião"
+            ]
+        },
+        {
+            "if": {
+                "field": "Atuação do Migrasas ?",
+                "equals_any": [
+                    "SIM"
+                ]
+            },
+            "then_require": [
+                "Data da Reunião de Alinhamento"
+            ]
+        },
+        {
+            "if": {
+                "field": "Criar Plano?",
+                "equals_any": [
+                    "SIM"
+                ]
+            },
+            "then_require": [
+                "Prosula - Criação de Plano",
+                "Envio - Criação de Plano",
+                "Retorno - Criação de Plano",
+                "Possui Prestige, Executivo ou Especial Mais?"
+            ]
+        },
+        {
+            "if": {
+                "field": "Houve pedido de Aditivo",
+                "equals_any": [
+                    "SIM"
+                ]
+            },
+            "then_require": [
+                "Data do pedido de Aditivo",
+                "Data da Assinatura do Aditivo",
+                "Adtivo Finalizado ?"
+            ]
+        },
+        {
+            "if": {
+                "field": "Pedido De Termo Méd/Odonto",
+                "equals_any": [
+                    "SIM"
+                ]
+            },
+            "then_require": [
+                "Prosula - Coop. Médica",
+                "Data - Coop. Médica"
+            ]
+        }
+    ],
+    "marketing": {
+        "fields": [
+            "Mecsas",
+            "Palestra",
+            "Plantão",
+            "Suladay"
+        ],
+        "pendencia_name_if_any_empty": "Ações de marketing"
+    },
+    "no_pendencia_action": "ignore"
+}

@@ -1,19 +1,10 @@
 import { adminDb, admin } from './firebase-admin.js';
-import rulesJson from '../../src/config/rules_validacao_v1.json';
-import collaboratorsJson from '../../src/config/colaboradores_map.json';
-import aliasesJson from '../../src/config/column_aliases.json';
+import { loadConfigJson } from './load-json.js';
 
-// Interfaces para tipagem
-interface SyncResult {
-  linhas_total: number;
-  linhas_gate: number;
-  linhas_com_pendencia: number;
-  ignoradas_por_status: number;
-  criadas: number;
-  atualizadas: number;
-  nao_mapeados: string[];
-  amostras: string[];
-}
+// Carregamento assíncrono das configurações (Top-level await)
+const rulesJson = await loadConfigJson('../_config/rules_validacao_v1.json', import.meta.url);
+const collaboratorsJson = await loadConfigJson('../_config/colaboradores_map.json', import.meta.url);
+const aliasesJson = await loadConfigJson('../_config/column_aliases.json', import.meta.url);
 
 /**
  * Normaliza strings para IDs e comparações (remover acentos, espaços, etc)
@@ -48,7 +39,7 @@ function normalizeCollabName(name: string): string {
 function getCanonicalColumn(colName: string): string {
   const lowerCol = colName.trim().toLowerCase();
   for (const [canonical, aliases] of Object.entries(aliasesJson)) {
-    if (aliases.some(a => a.toLowerCase() === lowerCol)) {
+    if ((aliases as string[]).some(a => a.toLowerCase() === lowerCol)) {
       return canonical;
     }
   }
@@ -70,7 +61,7 @@ export function generateFingerprint(row: any): string {
  */
 export function passesGate(row: any): boolean {
   const field = rulesJson.gate.field;
-  const allowed = rulesJson.gate.allowed.map(s => s.toUpperCase());
+  const allowed = (rulesJson.gate.allowed as string[]).map(s => s.toUpperCase());
   const status = (row[field] || "").toString().trim().toUpperCase();
   return allowed.includes(status);
 }
@@ -82,19 +73,19 @@ export function evaluateRules(row: any): string[] {
   const itens: string[] = [];
 
   // 1. Required fields
-  for (const field of rulesJson.required_fields) {
+  for (const field of (rulesJson.required_fields as string[])) {
     if (!row[field] || row[field].toString().trim() === "") {
       itens.push(field);
     }
   }
 
   // 2. Conditional required
-  for (const cond of rulesJson.conditional_required) {
+  for (const cond of (rulesJson.conditional_required as any[])) {
     const triggerValue = (row[cond.if.field] || "").toString().trim().toUpperCase();
-    const matches = cond.if.equals_any.some(v => v.toUpperCase() === triggerValue);
+    const matches = (cond.if.equals_any as string[]).some(v => v.toUpperCase() === triggerValue);
 
     if (matches) {
-      for (const reqField of cond.then_require) {
+      for (const reqField of (cond.then_require as string[])) {
         if ((!row[reqField] || row[reqField].toString().trim() === "") && !itens.includes(reqField)) {
           itens.push(reqField);
         }
@@ -103,7 +94,7 @@ export function evaluateRules(row: any): string[] {
   }
 
   // 3. Marketing block
-  const marketingFields = rulesJson.marketing.fields;
+  const marketingFields = rulesJson.marketing.fields as string[];
   const anyMarketingEmpty = marketingFields.some(f => !row[f] || row[f].toString().trim() === "");
   if (anyMarketingEmpty) {
     const mktName = rulesJson.marketing.pendencia_name_if_any_empty;
