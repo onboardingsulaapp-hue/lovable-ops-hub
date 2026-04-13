@@ -11,22 +11,31 @@ export const config = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Envolver absolutamente tudo em um try/catch global para garantir retorno JSON
   try {
     if (req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method Not Allowed' });
+      return res.status(405).json({ 
+        ok: false, 
+        error: 'Método não permitido', 
+        hint: 'Esta rota aceita apenas chamadas POST multipart/form-data.' 
+      });
     }
 
-    // 1. Validar Autenticação (Firebase ID Token) através do helper centralizado
+    // 1. Validar Autenticação e Autorização (Helper centralizado)
     let uid: string;
     try {
         uid = await verifyFirebaseIdToken(req.headers.authorization);
     } catch (error: any) {
-        return res.status(error.status || 401).json({ error: error.message });
+        return res.status(error.status || 401).json({ 
+          ok: false, 
+          error: error.message, 
+          hint: error.hint || 'Verifique se você está logado e tem privilégios de Admin.' 
+        });
     }
 
     const adminDb = getFirestore();
 
-    // 2. Setup do Job no Firestore
+    // 2. Setup do Job no Firestore (Rastreabilidade)
     const jobId = `job_${Date.now()}_direct`;
     const jobRef = adminDb.collection('jobs').doc(jobId);
 
@@ -44,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     });
 
-    // 3. Processar Multipart Form Data
+    // 3. Processar Multipart Form Data usando Busboy
     const busboy = Busboy({ headers: req.headers });
     let result = {
       linhas_total: 0,
@@ -101,7 +110,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             finished_at: admin.firestore.FieldValue.serverTimestamp()
           });
 
-          res.status(200).json({ jobId, status: 'success', result });
+          res.status(200).json({ ok: true, jobId, status: 'success', result });
           resolve(true);
         });
 
@@ -112,14 +121,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             error: err.message,
             finished_at: admin.firestore.FieldValue.serverTimestamp()
           });
-          res.status(500).json({ error: err.message });
+          res.status(500).json({ 
+            ok: false, 
+            error: `Erro ao processar CSV: ${err.message}`, 
+            hint: 'O formato do arquivo CSV pode ser inválido ou incompatível.' 
+          });
           resolve(false);
         });
       });
 
       busboy.on('error', (err) => {
         console.error('Busboy Error:', err);
-        res.status(400).json({ error: 'Multipart parsing failed' });
+        res.status(400).json({ 
+          ok: false, 
+          error: 'Falha no parsing multipart', 
+          hint: 'Certifique-se de que o corpo da requisição é um multipart/form-data válido.' 
+        });
         resolve(false);
       });
 
@@ -127,6 +144,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (err: any) {
     console.error('Global API Error:', err);
-    return res.status(500).json({ error: err.message || 'Internal Server Error' });
+    return res.status(500).json({ 
+      ok: false, 
+      error: err.message || 'Erro interno no servidor', 
+      hint: 'Verifique as variáveis de ambiente (FIREBASE_SERVICE_ACCOUNT) e logs do Vercel.' 
+    });
   }
 }

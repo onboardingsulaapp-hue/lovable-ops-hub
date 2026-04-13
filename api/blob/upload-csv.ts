@@ -6,9 +6,17 @@ export default async function handler(
   request: VercelRequest,
   response: VercelResponse,
 ) {
-  const body = request.body as HandleUploadBody;
-
   try {
+    if (request.method !== 'POST') {
+        return response.status(405).json({ 
+            ok: false, 
+            error: 'Method Not Allowed',
+            hint: 'Use POST requests.'
+        });
+    }
+
+    const body = request.body as HandleUploadBody;
+
     const jsonResponse = await handleUpload({
       body,
       request,
@@ -16,7 +24,7 @@ export default async function handler(
         const payload = JSON.parse(clientPayload || '{}');
         const idToken = payload.idToken;
 
-        // Validar token e perfil
+        // Validar token e perfil admin através do helper robusto
         const uid = await verifyFirebaseIdToken(`Bearer ${idToken}`);
 
         return {
@@ -44,15 +52,20 @@ export default async function handler(
               contentType: blob.contentType,
             },
           });
-          console.log(`Job ${jobId} queued for blob ${blob.url}`);
+          console.log(`[Blob] Job ${jobId} queued for ${blob.url}`);
         } catch (error) {
-          console.error('Error creating job after blob upload:', error);
+          console.error('[Blob] Error creating job:', error);
         }
       },
     });
 
     return response.status(200).json(jsonResponse);
   } catch (error: any) {
-    return response.status(error.status || 400).json({ error: (error as Error).message });
+    console.error('[Blob] Upload Error:', error.message);
+    return response.status(error.status || 400).json({ 
+        ok: false, 
+        error: error.message,
+        hint: error.hint || 'Verifique as configurações de autenticação e permissões do Vercel Blob.'
+    });
   }
 }

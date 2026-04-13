@@ -4,13 +4,17 @@ import { cleanRow, processRow } from '../_utils/rules-engine.js';
 import { parse } from 'csv-parse/sync';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // 1. Verificar autorização via CRON_SECRET
-  const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid Cron Secret' });
-  }
-
   try {
+    // 1. Verificar autorização via CRON_SECRET
+    const authHeader = req.headers.authorization;
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      return res.status(401).json({ 
+        ok: false, 
+        error: 'Unauthorized: Invalid Cron Secret',
+        hint: 'O endpoint consume é protegido e deve ser chamado apenas pelo Vercel Cron ou com o CRON_SECRET correto.'
+      });
+    }
+
     const adminDb = getFirestore();
     
     // 2. Buscar 1 job pendente (queued)
@@ -23,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .get();
 
     if (q.empty) {
-      return res.status(200).json({ message: 'No queued jobs found' });
+      return res.status(200).json({ ok: true, message: 'No queued jobs found' });
     }
 
     const jobDoc = q.docs[0];
@@ -104,30 +108,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     console.log(`[Worker] Job ${jobId} completed successfully.`);
-    return res.status(200).json({ jobId, status: 'success', result });
+    return res.status(200).json({ ok: true, jobId, status: 'success', result });
 
   } catch (error: any) {
     console.error('[Worker] Fatal Error:', error);
     
-    // Tentar marcar o job como falho (se possível)
-    try {
-        const adminDb = getFirestore();
-        const jobsRef = adminDb.collection('jobs');
-        const q = await jobsRef
-          .where('tipo', '==', 'sync_pendencias_csv')
-          .where('status', '==', 'running')
-          .limit(1)
-          .get();
-          
-        if (!q.empty) {
-            await q.docs[0].ref.update({
-                status: 'failed',
-                error: error.message,
-                finished_at: admin.firestore.FieldValue.serverTimestamp()
-            });
-        }
-    } catch (e) {}
-
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ 
+        ok: false, 
+        error: error.message,
+        hint: 'Erro no processamento do worker. Verifique os logs da Vercel para detalhes do parsing CSV ou acesso ao Firestore.'
+    });
   }
 }
