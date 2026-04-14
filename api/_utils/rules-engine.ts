@@ -259,7 +259,11 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
 export function cleanRow(rawRow: any): any {
   const cleaned: any = {};
   for (const [key, value] of Object.entries(rawRow)) {
-    const canonicalKey = getCanonicalColumn(key);
+    const trimmedKey = key.trim();
+    // Ignorar colunas sem nome (vazias) que quebram o Firestore
+    if (!trimmedKey) continue;
+    
+    const canonicalKey = getCanonicalColumn(trimmedKey);
     cleaned[canonicalKey] = (value as string || "").toString().trim();
   }
   return cleaned;
