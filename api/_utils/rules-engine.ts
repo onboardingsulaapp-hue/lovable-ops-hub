@@ -1,11 +1,8 @@
 import { getFirestore } from './firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
-import { loadConfigJson } from './load-json.js';
-
-// Carregamento assíncrono das configurações (Top-level await)
-const rulesJson = await loadConfigJson('../_config/rules_validacao_v1.json', import.meta.url);
-const collaboratorsJson = await loadConfigJson('../_config/colaboradores_map.json', import.meta.url);
-const aliasesJson = await loadConfigJson('../_config/column_aliases.json', import.meta.url);
+import { RULES_VALIDACAO_V1 as rulesJson } from '../_config/rules_validacao_v1.js';
+import { COLAB_MAP as collaboratorsJson } from '../_config/colaboradores_map.js';
+import { COLUMN_ALIASES as aliasesJson } from '../_config/column_aliases.js';
 
 /**
  * Normaliza strings para IDs e comparações (remover acentos, espaços, etc)

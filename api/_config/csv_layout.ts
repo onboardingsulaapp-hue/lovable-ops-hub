@@ -1,4 +1,4 @@
-{
+export const CSV_LAYOUT = {
     "header_detection": {
         "mode": "starts_with",
         "starts_with": "Carimbo de data/hora"
@@ -16,4 +16,4 @@
         "Inicio da Vigência de Contrato",
         "Representante da Implantação"
     ]
-}
+};

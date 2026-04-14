@@ -1,4 +1,4 @@
-{
+export const RULES_VALIDACAO_V1 = {
     "version": 1,
     "gate": {
         "field": "Status da Empresa",
@@ -106,4 +106,4 @@
         "pendencia_name_if_any_empty": "Ações de marketing"
     },
     "no_pendencia_action": "ignore"
-}
+};

@@ -1,4 +1,4 @@
-{
+export const EMAIL_TEMPLATES = {
     "subject": "Pendências pendentes - prazo {prazo_dias} dias",
     "body": [
         "Olá, {nome}.",
@@ -12,4 +12,4 @@
         "Atenciosamente,",
         "SulAmérica | Pendências"
     ]
-}
+};
