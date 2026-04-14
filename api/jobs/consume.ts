@@ -53,13 +53,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 4. Baixar e Parsear o CSV
     const response = await fetch(blobUrl);
     if (!response.ok) throw new Error(`Failed to download blob: ${response.statusText}`);
-    const csvContent = await response.text();
-    const buffer = Buffer.from(csvContent, 'utf-8');
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    // Auto-detect encoding (UTF-8 vs Latin-1)
+    let csvText = buffer.toString('utf-8');
+    if (csvText.includes('\uFFFD')) {
+      console.log('[CSV] Detected non-UTF8 encoding, falling back to latin1.');
+      csvText = buffer.toString('latin1');
+    }
 
     // Detectar onde o cabeçalho real começa
     const fromLine = await getCsvHeaderOffset(buffer);
 
-    const records = parse(buffer, {
+    const records = parse(csvText, {
       columns: true,
       skip_empty_lines: true,
       trim: true,

@@ -77,10 +77,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         file.on('end', async () => {
           try {
             const buffer = Buffer.concat(chunks);
+            
+            // Auto-detect encoding (UTF-8 vs Latin-1)
+            let csvText = buffer.toString('utf-8');
+            if (csvText.includes('\uFFFD')) {
+              console.log('[CSV] Detected non-UTF8 encoding, falling back to latin1.');
+              csvText = buffer.toString('latin1');
+            }
+
             // Detectar onde o cabeçalho real começa
             const fromLine = await getCsvHeaderOffset(buffer);
             
-            const records = parse(buffer, {
+            const records = parse(csvText, {
               columns: true,
               skip_empty_lines: true,
               trim: true,
