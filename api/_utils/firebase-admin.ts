@@ -77,6 +77,7 @@ export function getFirestore() {
       return getFirestoreAdmin(app, databaseId);
     }
     
+    console.log('[Firebase Firestore] Usando databaseId padrão (default)');
     return getFirestoreAdmin(app);
   } catch (error: any) {
     console.error('[Firebase Firestore] Erro ao obter instância:', error.message);
@@ -129,10 +130,18 @@ export async function verifyFirebaseIdToken(authorizationHeader: string | undefi
     console.error('[Auth] Erro de validação:', error.message);
     const err: any = new Error(error.message);
     err.status = error.status || 401;
-    err.hint = error.hint || "O token pode ter expirado ou ser inválido.";
+    
+    // Melhorar dica para erro 5 NOT_FOUND
+    if (error.message.includes('5 NOT_FOUND') || error.code === 5) {
+      err.hint = "Erro Firestore 5 NOT_FOUND: Verifique se o banco de dados especificado existe. Se você usa um banco nomeado (ex: 'default' sem parênteses), configure FIRESTORE_DATABASE_ID na Vercel.";
+    } else {
+      err.hint = error.hint || "O token pode ter expirado ou ser inválido.";
+    }
+    
     throw err;
   }
 }
+
 
 /**
  * Busca perfil do usuário de forma segura
