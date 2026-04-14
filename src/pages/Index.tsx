@@ -17,7 +17,8 @@ import { SocioCharts } from "@/components/socio/SocioCharts";
 import { SendEmailDialog } from "@/components/socio/SendEmailDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { auth, db } from "@/lib/firebase";
-import { collection, doc, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, Timestamp, orderBy } from "firebase/firestore";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 
 const emptyFilters: Filters = { colaborador_id: "", status: "", prioridade: "", origem: "", data_inicio: "", data_fim: "", tipo_implantacao: "" };
 
