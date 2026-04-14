@@ -83,7 +83,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         criadas: 0,
         atualizadas: 0,
         nao_mapeados: [] as string[],
-        amostras: [] as string[]
+        amostras: [] as string[],
+        erros_processamento: [] as any[]
     };
 
     for (const rawRow of records) {
@@ -106,8 +107,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           } else if (resRow.action === 'sem_mudanca' || resRow.action === 'no_pendency') {
             result.linhas_gate++;
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error(`Error processing line ${result.linhas_total}:`, err);
+          result.erros_processamento.push({
+            linha: result.linhas_total,
+            cliente: row['Razão Social do Cliente'] || 'N/A',
+            erro: err.message,
+            stack: err.stack?.substring(0, 200)
+          });
         }
     }
 
@@ -115,7 +122,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 6. Sucesso
     await jobDoc.ref.update({
-      status: 'success',
+      status: result.erros_processamento.length > 0 && result.linhas_gate === 0 ? 'failed' : 'success',
       result,
       finished_at: FieldValue.serverTimestamp()
     });

@@ -160,12 +160,20 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   }
 
   // Se nada pendente, ignorar
-  if (itens.length === 0) return { action: 'no_pendency' };
+  if (itens.length === 0) {
+    return { action: 'no_pendency' };
+  }
 
   // Fingerprint
   const fp = generateFingerprint(row);
   const docRef = db.collection('pendencias').doc(fp);
-  const docSnap = await docRef.get();
+  
+  console.log(`[Firestore] Verificando documento: pendencias/${fp}`);
+  const docSnap = await docRef.get().catch(e => {
+    console.error(`[Firestore] Falha ao ler documento ${fp}:`, e.message);
+    throw e;
+  });
+  
   const before = docSnap.exists ? docSnap.data() : null;
 
   const texto = `Pendências identificadas: ${itens.join(', ')}. Favor regularizar e atualizar.`;
@@ -194,7 +202,11 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
 
   if (!docSnap.exists) {
     payload.criado_em = FieldValue.serverTimestamp();
-    await docRef.set(payload);
+    console.log(`[Firestore] Criando novo documento: ${fp}`);
+    await docRef.set(payload).catch(e => {
+      console.error(`[Firestore] Falha ao criar documento ${fp}:`, e.message);
+      throw e;
+    });
     action = 'criada';
   } else {
     // Verificar se houve mudança nos itens
@@ -202,20 +214,27 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     const hasChanged = JSON.stringify(oldItens.sort()) !== JSON.stringify(itens.sort());
     
     if (hasChanged) {
-      await docRef.update(payload);
+      console.log(`[Firestore] Atualizando documento (mudança detectada): ${fp}`);
+      await docRef.update(payload).catch(e => {
+        console.error(`[Firestore] Falha ao atualizar documento ${fp}:`, e.message);
+        throw e;
+      });
       action = 'editada';
     } else {
-      // Mesmo sem mudar itens, atualizamos timestamp e linha caso necessário, 
-      // mas não registramos no histórico como mudança de conteúdo.
+      console.log(`[Firestore] Documento sem mudanças de itens, atualizando metadados: ${fp}`);
       await docRef.update({ 
         atualizado_em: FieldValue.serverTimestamp(),
         linha_planilha: lineNum 
+      }).catch(e => {
+        console.error(`[Firestore] Falha ao atualizar metadados ${fp}:`, e.message);
+        throw e;
       });
       return { action: 'sem_mudanca', fp };
     }
   }
 
   // Registrar Histórico
+  console.log(`[Firestore] Registrando histórico para: ${fp}`);
   await docRef.collection('historico').add({
     acao: action,
     usuario_id: "SYSTEM_CSV",
@@ -225,6 +244,10 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     comentario: "Sincronização via processamento de CSV.",
     antes: before,
     depois: payload
+  }).catch(e => {
+    console.error(`[Firestore] Falha ao registrar histórico para ${fp}:`, e.message);
+    // Não lançamos erro aqui para não invalidar a criação do doc principal, 
+    // mas logamos o erro crítico.
   });
 
   return { action, fp };
