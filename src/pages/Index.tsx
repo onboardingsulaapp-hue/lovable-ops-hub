@@ -58,7 +58,19 @@ const Index = () => {
       }
     );
 
-    return () => unsubscribeUsers();
+    const qLogs = query(collection(db, "admin_logs"), orderBy("dataHora", "desc"));
+    const unsubscribeLogs = onSnapshot(
+      qLogs,
+      (snapshot) => {
+        const logsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AdminLog[];
+        setAdminLogs(logsData.slice(0, 50)); // manter só os ultimos 50 exibidos
+      },
+      (error) => {
+        console.error("onSnapshot Erro Logs:", error);
+      }
+    );
+
+    return () => { unsubscribeUsers(); unsubscribeLogs(); };
   }, [user]);
 
   // 2. Escutar pendencias em tempo real (Filtrado para colaborador)
@@ -148,16 +160,18 @@ const Index = () => {
     return result;
   }, [activePendencias, filters]);
 
-  const addAdminLog = (acao: string, detalhes?: string) => {
+  const addAdminLog = async (acao: string, detalhes?: string) => {
     if (!user || user.role !== "admin") return;
-    const newLog: AdminLog = {
-      id: `log-${Date.now()}`,
-      acao,
-      usuarioAdmin: user.nome,
-      dataHora: new Date().toISOString(),
-      detalhes
-    };
-    setAdminLogs(prev => [newLog, ...prev]);
+    try {
+      await addDoc(collection(db, "admin_logs"), {
+        acao,
+        usuarioAdmin: user.nome,
+        dataHora: new Date().toISOString(),
+        detalhes: detalhes || null
+      });
+    } catch(e) {
+      console.error("Erro ao salvar log de auditoria", e);
+    }
   };
 
   const executeUpdateAndHistory = async (id: string, updates: Partial<Pendencia>, acao: string, detalhes?: string) => {
@@ -469,16 +483,23 @@ const Index = () => {
             <div className="flex items-center gap-3 relative z-10">
               {user.role === "admin" && (
                 <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRefreshData}
-                    disabled={isRefreshing}
-                    className="bg-white border-[#1D2E5D] text-[#1D2E5D] hover:bg-[#F7F8FA] font-bold py-5 px-6 shadow-none"
-                  >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
-                    {isRefreshing ? "Atualizando..." : "Sincronizar Cloud"}
-                  </Button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="bg-white border-[#1D2E5D] text-[#1D2E5D] hover:bg-[#F7F8FA] font-bold py-5 px-6 shadow-none"
+                      >
+                        <RefreshCw className={`h-4 w-4 mr-2 leading-none`} />
+                        Sincronizar CSV
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-xl bg-[#0f172a] text-white overflow-y-auto max-h-[85vh] border-none shadow-xl">
+                      <div className="pt-4">
+                        <UploadCsvPanel />
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                   <CreatePendenciaDialog 
                     colaboradores={colaboradores} 
                     onSubmit={handleCreatePendencia} 
@@ -592,11 +613,7 @@ const Index = () => {
                 Finalizadas
                 <span className="ml-2 bg-muted-foreground/10 text-muted-foreground py-0.5 px-2 rounded-full text-xs">{pendenciasFinalizadas.length}</span>
               </TabsTrigger>
-              {user.role === "admin" && (
-                <TabsTrigger value="sincronizar" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                  🔄 Sincronizar CSV
-                </TabsTrigger>
-              )}
+              {/* Removed Sincronizar CSV Tab */}
             </TabsList>
             <TabsContent value="em-andamento" className="m-0 mt-4 border-none p-0 outline-none">
               <PendenciaTable
@@ -618,20 +635,6 @@ const Index = () => {
                 colaboradores={colaboradores}
               />
             </TabsContent>
-            {user.role === "admin" && (
-              <TabsContent value="sincronizar" className="m-0 mt-4 border-none p-0 outline-none">
-                <div
-                  style={{
-                    background: "#0f172a",
-                    borderRadius: "12px",
-                    padding: "24px",
-                    minHeight: "300px",
-                  }}
-                >
-                  <UploadCsvPanel />
-                </div>
-              </TabsContent>
-            )}
           </Tabs>
         ) : (
           <div className="space-y-12 mt-6">

@@ -58,7 +58,14 @@ export function SocioCharts({ pendencias }: SocioChartsProps) {
   const implData = useMemo(() => {
     const counts: Record<string, number> = {};
     pendencias.forEach(p => {
-      counts[p.tipo_implantacao] = (counts[p.tipo_implantacao] || 0) + 1;
+      let rawType = p.tipo_implantacao || "Outros";
+      
+      // Normalização para o gráfico: Saúde vs Odonto independente de acentuação e caixa
+      const norm = rawType.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      if (norm.includes("SAUDE")) rawType = "SAÚDE";
+      else if (norm.includes("ODONTO")) rawType = "ODONTO";
+
+      counts[rawType] = (counts[rawType] || 0) + 1;
     });
     return Object.entries(counts).map(([name, value], idx) => ({ name, value, color: COLORS[idx % COLORS.length] }));
   }, [pendencias]);
