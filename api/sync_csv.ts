@@ -2,6 +2,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { getFirestore, verifyFirebaseIdToken } from './_utils/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { cleanRow, processRow } from './_utils/rules-engine.js';
+import { getCsvHeaderOffset } from './_utils/csv-helper.js';
 import { parse } from 'csv-parse';
 import Busboy from 'busboy';
 
@@ -69,65 +70,83 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return new Promise((resolve) => {
       busboy.on('file', (name, file, info) => {
-        const parser = file.pipe(parse({
-          columns: true,
-          skip_empty_lines: true,
-          trim: true,
-          bom: true,
-          relax_column_count: true
-        }));
-
-        parser.on('data', async (rawRow) => {
-          result.linhas_total++;
-          const row = cleanRow(rawRow);
-
+        const chunks: any[] = [];
+        
+        file.on('data', (chunk) => chunks.push(chunk));
+        
+        file.on('end', async () => {
           try {
-            const resRow = await processRow(row, result.linhas_total, uid);
+            const buffer = Buffer.concat(chunks);
+            // Detectar onde o cabeçalho real começa
+            const fromLine = await getCsvHeaderOffset(buffer);
+            
+            const parser = parse(buffer, {
+              columns: true,
+              skip_empty_lines: true,
+              trim: true,
+              bom: true,
+              relax_column_count: true,
+              from_line: fromLine // Pular as linhas de "lixo"
+            });
 
-            if (resRow.action === 'ignored_by_gate') {
-              result.ignoradas_por_status++;
-            } else if (resRow.action === 'criada') {
-              result.criadas++;
-              result.linhas_gate++;
-              if (result.amostras.length < 10) result.amostras.push(`[CRIADA] ${row['Razão Social do Cliente']}`);
-            } else if (resRow.action === 'editada') {
-              result.atualizadas++;
-              result.linhas_gate++;
-              if (result.amostras.length < 10) result.amostras.push(`[ATUALIZADA] ${row['Razão Social do Cliente']}`);
-            } else if (resRow.action === 'sem_mudanca' || resRow.action === 'no_pendency') {
-              result.linhas_gate++;
-            }
-          } catch (err) {
-            console.error(`Error processing line ${result.linhas_total}:`, err);
+            parser.on('data', async (rawRow) => {
+              result.linhas_total++;
+              const row = cleanRow(rawRow);
+
+              try {
+                const resRow = await processRow(row, result.linhas_total, uid);
+
+                if (resRow.action === 'ignored_by_gate') {
+                  result.ignoradas_por_status++;
+                } else if (resRow.action === 'criada') {
+                  result.criadas++;
+                  result.linhas_gate++;
+                  if (result.amostras.length < 10) result.amostras.push(`[CRIADA] ${row['Razão Social do Cliente']}`);
+                } else if (resRow.action === 'editada') {
+                  result.atualizadas++;
+                  result.linhas_gate++;
+                  if (result.amostras.length < 10) result.amostras.push(`[ATUALIZADA] ${row['Razão Social do Cliente']}`);
+                } else if (resRow.action === 'sem_mudanca' || resRow.action === 'no_pendency') {
+                  result.linhas_gate++;
+                }
+              } catch (err) {
+                console.error(`Error processing line ${result.linhas_total}:`, err);
+              }
+            });
+
+            parser.on('end', async () => {
+              result.linhas_com_pendencia = result.criadas + result.atualizadas;
+
+              await jobRef.update({
+                status: 'success',
+                result,
+                finished_at: FieldValue.serverTimestamp()
+              });
+
+              res.status(200).json({ ok: true, jobId, status: 'success', result });
+              resolve(true);
+            });
+
+            parser.on('error', async (err) => {
+              console.error('Parsing Error:', err);
+              await jobRef.update({
+                status: 'failed',
+                error: err.message,
+                finished_at: FieldValue.serverTimestamp()
+              });
+              res.status(500).json({ 
+                ok: false, 
+                error: `Erro ao processar CSV: ${err.message}`, 
+                hint: 'O formato do arquivo CSV pode ser inválido ou incompatível.' 
+              });
+              resolve(false);
+            });
+            
+          } catch (err: any) {
+            console.error('File Processing Error:', err);
+            res.status(500).json({ ok: false, error: err.message });
+            resolve(false);
           }
-        });
-
-        parser.on('end', async () => {
-          result.linhas_com_pendencia = result.criadas + result.atualizadas;
-
-          await jobRef.update({
-            status: 'success',
-            result,
-            finished_at: FieldValue.serverTimestamp()
-          });
-
-          res.status(200).json({ ok: true, jobId, status: 'success', result });
-          resolve(true);
-        });
-
-        parser.on('error', async (err) => {
-          console.error('Parsing Error:', err);
-          await jobRef.update({
-            status: 'failed',
-            error: err.message,
-            finished_at: FieldValue.serverTimestamp()
-          });
-          res.status(500).json({ 
-            ok: false, 
-            error: `Erro ao processar CSV: ${err.message}`, 
-            hint: 'O formato do arquivo CSV pode ser inválido ou incompatível.' 
-          });
-          resolve(false);
         });
       });
 
@@ -143,6 +162,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       req.pipe(busboy);
     });
+
   } catch (err: any) {
     console.error('Global API Error:', err);
     return res.status(500).json({ 

@@ -12,7 +12,12 @@ export const COLUMN_ALIASES = {
     ],
     "Status da Empresa": [
         "Status da Empresa",
-        "Status Empresa"
+        "Status Empresa",
+        "Status",
+        "Situação",
+        "Situacao",
+        "Status do Contrato",
+        "Status da Proposta"
     ],
     "Data do envio do e-mail de Liberação": [
         "Data do envio do e-mail de Liberação",

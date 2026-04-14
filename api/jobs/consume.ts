@@ -2,6 +2,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { getFirestore } from '../_utils/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { cleanRow, processRow } from '../_utils/rules-engine.js';
+import { getCsvHeaderOffset } from '../_utils/csv-helper.js';
 import { parse } from 'csv-parse/sync';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -53,13 +54,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const response = await fetch(blobUrl);
     if (!response.ok) throw new Error(`Failed to download blob: ${response.statusText}`);
     const csvContent = await response.text();
+    const buffer = Buffer.from(csvContent, 'utf-8');
 
-    const records = parse(csvContent, {
+    // Detectar onde o cabeçalho real começa
+    const fromLine = await getCsvHeaderOffset(buffer);
+
+    const records = parse(buffer, {
       columns: true,
       skip_empty_lines: true,
       trim: true,
       bom: true,
-      relax_column_count: true
+      relax_column_count: true,
+      from_line: fromLine // Pular as linhas de "lixo"
     });
 
     // 5. Processar Linhas
