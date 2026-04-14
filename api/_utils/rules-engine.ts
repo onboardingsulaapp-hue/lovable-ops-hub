@@ -32,6 +32,20 @@ function normalizeCollabName(name: string): string {
 }
 
 /**
+ * Normalização robusta para comparação (remove acentos, espaços extras e uppercase)
+ */
+function compareNormalize(text: string): string {
+  if (!text) return '';
+  return text
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+/**
  * Resolve o nome da coluna caso existam aliases
  */
 function getCanonicalColumn(colName: string): string {
@@ -59,9 +73,17 @@ export function generateFingerprint(row: any): string {
  */
 export function passesGate(row: any): boolean {
   const field = rulesJson.gate.field;
-  const allowed = (rulesJson.gate.allowed as string[]).map(s => s.toUpperCase());
-  const status = (row[field] || "").toString().trim().toUpperCase();
-  return allowed.includes(status);
+  const allowed = (rulesJson.gate.allowed as string[]).map(s => compareNormalize(s));
+  const rawValue = (row[field] || "").toString();
+  const status = compareNormalize(rawValue);
+  
+  const ok = allowed.includes(status);
+  
+  if (!ok) {
+    console.log(`[Gate] Linha ignorada. Status: "${rawValue}" (normalizado: "${status}"). Esperados: ${JSON.stringify(allowed)}`);
+  }
+  
+  return ok;
 }
 
 /**
