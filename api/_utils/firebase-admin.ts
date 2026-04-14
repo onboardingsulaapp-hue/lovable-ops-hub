@@ -70,6 +70,13 @@ export function getAdminApp() {
 export function getFirestore() {
   try {
     const app = getAdminApp();
+    const databaseId = process.env.FIRESTORE_DATABASE_ID;
+    
+    if (databaseId) {
+      console.log(`[Firebase Firestore] Usando databaseId específico: ${databaseId}`);
+      return getFirestoreAdmin(app, databaseId);
+    }
+    
     return getFirestoreAdmin(app);
   } catch (error: any) {
     console.error('[Firebase Firestore] Erro ao obter instância:', error.message);
