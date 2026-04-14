@@ -5,6 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogIn, Shield, UserPlus, Loader2, KeyRound, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import logoImg from "@/assets/brand/sulamerica_logo.png";
+import logo130Img from "@/assets/brand/sulamerica_130anos.png";
+import wavesImg from "@/assets/brand/brand_waves.svg";
 
 type AuthState = "LOGIN" | "REGISTER" | "FORGOT";
 
@@ -89,20 +92,20 @@ export function LoginScreen() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-brand-light relative overflow-hidden font-sans">
       {/* Background SVG Brand Waves Placeholder */}
       <img
-        src="/src/assets/brand/brand_waves.svg"
+        src={wavesImg}
         alt=""
         className="absolute bottom-[-10%] right-[-5%] w-3/4 max-w-[1000px] opacity-70 pointer-events-none z-0"
       />
 
       {/* Selo 130 Anos opcional (topo) */}
       <div className="absolute top-8 left-8 z-0 hidden md:block">
-        <img src="/src/assets/brand/sulamerica_130anos.png" alt="130 Anos" className="h-16 opacity-80" />
+        <img src={logo130Img} alt="130 Anos" className="h-16 opacity-80" />
       </div>
 
       <Card className="w-full max-w-[420px] bg-white border-none shadow-[0px_8px_24px_rgba(29,46,93,0.08)] rounded-[12px] z-10 animate-in fade-in zoom-in duration-300">
         <CardHeader className="text-center pb-2 pt-8">
           <div className="mx-auto flex flex-col items-center justify-center mb-6">
-            <img src="/src/assets/brand/sulamerica_logo.png" alt="SulAmérica Logo" className="h-14 object-contain" />
+            <img src={logoImg} alt="SulAmérica Logo" className="h-[46px] object-contain" />
           </div>
           <CardTitle className="text-[22px] font-bold text-brand-blue tracking-normal">
             Operações Corporativas

@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { auth, db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, Timestamp, orderBy } from "firebase/firestore";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import logoImg from "@/assets/brand/sulamerica_logo.png";
 
 const emptyFilters: Filters = { colaborador_id: "", status: "", prioridade: "", origem: "", data_inicio: "", data_fim: "", tipo_implantacao: "" };
 
@@ -408,7 +409,7 @@ const Index = () => {
       <header className="bg-white sticky top-0 z-10 border-b border-borderLight shadow-sm transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between">
           <div className="flex items-center gap-4 sm:gap-6">
-            <img src="/src/assets/brand/sulamerica_logo.png" alt="SulAmérica" className="h-[38px] object-contain" />
+            <img src={logoImg} alt="SulAmérica" className="h-[38px] object-contain" />
             
             <div className="h-8 w-px bg-borderLight hidden sm:block"></div>
             
