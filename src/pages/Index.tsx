@@ -401,21 +401,25 @@ const Index = () => {
   const colabsComPendenciasUnicos = new Set(filteredPendencias.filter(p => (p.status?.toLowerCase() || "") === "pendente").map(p => p.colaborador_nome)).size;
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA]">
-      <header className="bg-[#1D2E5D] sticky top-0 z-10 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="h-10 w-10 bg-white rounded-md flex items-center justify-center overflow-hidden p-1 shadow-inner">
-              <Shield className="h-6 w-6 text-[#1D2E5D]" />
-            </div>
-            <div className="flex flex-col">
-              <h1 className="text-lg font-bold text-white tracking-tight leading-none uppercase italic">SulAmérica</h1>
-              <span className="text-[10px] text-white/70 font-medium uppercase tracking-[0.2em] mt-1">Operações Corporativas</span>
+    <div className="min-h-screen bg-brand-light font-sans text-brand-blue">
+      {/* Faixa superior institucional (Laranja SulAmérica) */}
+      <div className="w-full h-1.5 bg-brand-orange z-20 relative"></div>
+      
+      <header className="bg-white sticky top-0 z-10 border-b border-borderLight shadow-sm transition-all">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between">
+          <div className="flex items-center gap-4 sm:gap-6">
+            <img src="/src/assets/brand/sulamerica_logo.png" alt="SulAmérica" className="h-[38px] object-contain" />
+            
+            <div className="h-8 w-px bg-borderLight hidden sm:block"></div>
+            
+            <div className="hidden sm:flex flex-col">
+              <h1 className="text-base font-bold text-brand-blue tracking-tight leading-none uppercase">Operações Corporativas</h1>
+              <span className="text-[10px] text-brand-orange font-bold uppercase tracking-widest mt-1">Conformidade e Pendências</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
             {user.role === "admin" && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <AdminLogsPanel logs={adminLogs} />
                 <CollaboratorManagerDialog
                   users={users}
@@ -425,21 +429,22 @@ const Index = () => {
                 />
               </div>
             )}
-            <div className="h-6 w-px bg-white/20 mx-1"></div>
-            <div className="flex items-center gap-3 text-sm text-white">
+            <div className="h-6 w-px bg-borderLight mx-1 hidden sm:block"></div>
+            <div className="flex items-center gap-3">
               <div className="flex flex-col items-end mr-1">
-                <span className="font-semibold">{user.nome}</span>
-                <span className="text-[10px] text-white/60 uppercase font-bold tracking-tighter">
-                  {user.role === "admin" ? "Administrador" : user.role === "socio" ? "Sócio" : "Colaborador"}
+                <span className="font-semibold text-brand-blue text-sm">{user.nome}</span>
+                <span className="text-[10px] text-brand-muted uppercase font-bold tracking-tighter">
+                  {user.role === "admin" ? "Administrador" : user.role === "socio" ? "Sócio Gestor" : "Colaborador"}
                 </span>
               </div>
               <Button 
                 variant="ghost" 
                 size="icon" 
                 onClick={() => logout()} 
-                className="text-white hover:bg-white/10 h-9 w-9 rounded-full"
+                className="text-brand-muted hover:bg-brand-light hover:text-brand-orange h-[38px] w-[38px] rounded-full transition-colors"
+                title="Sair do Sistema"
               >
-                <LogOut className="h-5 w-5" />
+                <LogOut className="h-[18px] w-[18px]" strokeWidth={2.5} />
               </Button>
             </div>
           </div>
@@ -459,25 +464,25 @@ const Index = () => {
           </div>
         )}
 
-        <div className="space-y-4">
-          <div className="text-[11px] text-[#737D9A] flex items-center gap-2 uppercase font-bold tracking-widest">
-            <span className="hover:text-[#1D2E5D] cursor-pointer transition-colors">Início</span>
-            <span className="text-[#D9CDCD]">/</span>
-            <span className="text-[#1D2E5D]">Painel de Pendências</span>
+        <div className="space-y-6">
+          <div className="text-[12px] text-brand-muted flex items-center gap-2 uppercase font-semibold tracking-wider">
+            <span className="hover:text-brand-orange cursor-pointer transition-colors">Início</span>
+            <span className="text-border">/</span>
+            <span className="text-brand-blue">Painel de Pendências</span>
           </div>
           
-          <div className="bg-white p-8 rounded-xl border border-[#D9CDCD] shadow-sm flex items-center justify-between flex-wrap gap-6 overflow-hidden relative group">
-            <div className="absolute top-0 left-0 w-2 h-full bg-[#F68B2C]" />
+          <div className="bg-white p-8 rounded-[12px] border border-border/60 shadow-[0px_4px_16px_rgba(29,46,93,0.04)] flex items-center justify-between flex-wrap gap-6 overflow-hidden relative group">
+            <div className="absolute top-0 left-0 w-1.5 h-full bg-brand-orange" />
             <div className="relative z-10">
-              <h2 className="text-2xl md:text-3xl font-black text-[#1D2E5D] tracking-tight uppercase">
-                Controle de Pendências <span className="text-[#F68B2C]">Operacionais</span>
+              <h2 className="text-2xl md:text-[28px] font-bold text-brand-blue tracking-tight">
+                Controle Estratégico <span className="font-light text-brand-muted">de Acessos e Regras</span>
               </h2>
-              <p className="text-sm text-[#737D9A] mt-3 max-w-2xl font-medium">
+              <p className="text-[14px] text-brand-muted mt-2 max-w-2xl leading-relaxed">
                 {user.role === "admin"
-                  ? "Gestão inteligente e corporativa de todas as pendências da operação."
+                  ? "Central corporativa para gestão, importação em lote (CSV) e auditoria."
                   : user.role === "socio" 
-                    ? "Acompanhamento macro, KPIs executivos e governança operacional."
-                    : "Acompanhe e registre a resolução das pendências designadas a sua área."}
+                    ? "Painel executivo com visão macro de processos e KPIs operacionais da empresa."
+                    : "Espaço dedicado para visualizar os relógios e regularizar pendências da sua alçada."}
               </p>
             </div>
             

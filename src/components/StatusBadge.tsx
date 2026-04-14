@@ -10,7 +10,7 @@ export function StatusBadge({ status }: { status: Status }) {
     <Badge
       variant="outline"
       className={cn(
-        "text-[11px] font-bold px-2 py-0.5 border shadow-none rounded-md uppercase tracking-wider",
+        "text-[10px] sm:text-[11px] font-bold px-2 py-0.5 border shadow-none rounded-full uppercase tracking-wider",
         s === "pendente" && "status-pendente",
         s === "corrigida" && "status-corrigida",
         s === "ok" && "status-ok",

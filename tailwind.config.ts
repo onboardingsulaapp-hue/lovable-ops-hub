@@ -14,9 +14,17 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Segoe UI", "Inter", "sans-serif"],
+        sans: ["Segoe UI", "system-ui", "Arial", "sans-serif"],
       },
       colors: {
+        brand: {
+          blue: "#1D2E5D",
+          orange: "#F68B2C",
+          primary: "#0066FF",
+          light: "#F7F8FA",
+          dark: "#0F172A",
+          muted: "#737D9A",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

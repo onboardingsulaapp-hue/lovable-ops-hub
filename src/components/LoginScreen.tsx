@@ -20,7 +20,7 @@ export function LoginScreen() {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email) {
       toast.error("Por favor, informe seu e-mail.");
       return;
@@ -52,9 +52,9 @@ export function LoginScreen() {
       }
     } catch (error: any) {
       console.error("Erro na autenticação:", error);
-      
+
       let msg = "Ocorreu um erro inesperado.";
-      
+
       if (error.message === "USUARIO_NAO_AUTORIZADO") {
         msg = "Usuário não autorizado. Solicite cadastro ao administrador.";
       } else if (error.message === "USUARIO_INATIVO") {
@@ -70,7 +70,7 @@ export function LoginScreen() {
       } else if (error.code === "auth/weak-password") {
         msg = "A senha deve ter pelo menos 6 caracteres.";
       }
-      
+
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -86,22 +86,34 @@ export function LoginScreen() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background">
-      <Card className="w-full max-w-sm border-border shadow-2xl animate-in fade-in zoom-in duration-300">
-        <CardHeader className="text-center pb-2">
-          <div className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-primary shadow-lg shadow-primary/20 flex items-center justify-center transform transition-transform hover:scale-105 duration-300">
-            <Shield className="h-8 w-8 text-primary-foreground" />
+    <div className="min-h-screen flex items-center justify-center p-4 bg-brand-light relative overflow-hidden font-sans">
+      {/* Background SVG Brand Waves Placeholder */}
+      <img
+        src="/src/assets/brand/brand_waves.svg"
+        alt=""
+        className="absolute bottom-[-10%] right-[-5%] w-3/4 max-w-[1000px] opacity-70 pointer-events-none z-0"
+      />
+
+      {/* Selo 130 Anos opcional (topo) */}
+      <div className="absolute top-8 left-8 z-0 hidden md:block">
+        <img src="/src/assets/brand/sulamerica_130anos.png" alt="130 Anos" className="h-16 opacity-80" />
+      </div>
+
+      <Card className="w-full max-w-[420px] bg-white border-none shadow-[0px_8px_24px_rgba(29,46,93,0.08)] rounded-[12px] z-10 animate-in fade-in zoom-in duration-300">
+        <CardHeader className="text-center pb-2 pt-8">
+          <div className="mx-auto flex flex-col items-center justify-center mb-6">
+            <img src="/src/assets/brand/sulamerica_logo.png" alt="SulAmérica Logo" className="h-14 object-contain" />
           </div>
-          <CardTitle className="text-2xl font-bold text-foreground tracking-tight">
-            SulAmérica <span className="font-light text-muted-foreground">| Pendências</span>
+          <CardTitle className="text-[22px] font-bold text-brand-blue tracking-normal">
+            Operações Corporativas
           </CardTitle>
-          <p className="text-sm text-muted-foreground mt-2">
-            {authState === "LOGIN" && "Acesse o painel de governança"}
-            {authState === "REGISTER" && "Defina sua senha de primeiro acesso"}
-            {authState === "FORGOT" && "Recuperação de acesso"}
+          <p className="text-[13px] text-brand-muted mt-2 font-medium">
+            {authState === "LOGIN" && "Acesso exclusivo a colaboradores e parceiros."}
+            {authState === "REGISTER" && "Defina sua senha de administrador ou parceiro."}
+            {authState === "FORGOT" && "Recuperação do seu acesso corporativo."}
           </p>
         </CardHeader>
-        <CardContent className="space-y-4 pt-4">
+        <CardContent className="space-y-4 pt-4 px-8 pb-8">
           <form onSubmit={handleAuth} className="space-y-4">
             <div className="space-y-2">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider ml-1">Email corporativo</label>
@@ -163,40 +175,52 @@ export function LoginScreen() {
               </div>
             )}
 
+            {authState === "LOGIN" && (
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-borderLight"></div>
+                <div className="flex-grow border-t border-borderLight"></div>
+              </div>
+            )}
+
             <Button
               type="submit"
-              className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-lg shadow-primary/10 transition-all active:scale-95"
+              className="w-full h-12 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold rounded-[8px] shadow-[0px_4px_16px_rgba(0,102,255,0.2)] transition-all active:scale-95 text-[14px] uppercase tracking-wide flex items-center justify-center"
               disabled={loading}
             >
               {loading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <>
-                  {authState === "LOGIN" && <LogIn className="h-4 w-4 mr-2" />}
-                  {authState === "REGISTER" && <UserPlus className="h-4 w-4 mr-2" />}
-                  {authState === "FORGOT" && <KeyRound className="h-4 w-4 mr-2" />}
-                  {authState === "LOGIN" && "Entrar Sistema"}
-                  {authState === "REGISTER" && "Ativar Conta"}
-                  {authState === "FORGOT" && "Enviar Link de Reset"}
+                  {authState === "LOGIN" && (
+                    <>
+                      <div className="flex items-center space-x-1 mr-2 opacity-80">
+                        <div className="h-2 w-2 bg-brand-blue rounded-full"></div>
+                        <div className="h-2 w-2 bg-brand-orange rounded-full"></div>
+                      </div>
+                      Entrar
+                    </>
+                  )}
+                  {authState === "REGISTER" && "ATIVAR MEU ACESSO"}
+                  {authState === "FORGOT" && "ENVIAR LINK DE REDEFINIÇÃO"}
                 </>
               )}
             </Button>
           </form>
 
-          <div className="flex flex-col gap-3 mt-6 pt-4 border-t border-border/50">
+          <div className="flex flex-col gap-3 mt-6 pt-4 border-t border-borderLight">
             {authState === "LOGIN" ? (
               <>
                 <button
                   type="button"
-                  className="text-xs text-primary hover:text-primary/80 font-semibold transition-colors flex items-center justify-center gap-1"
+                  className="text-[13px] text-brand-blue hover:text-brand-primary font-semibold transition-colors flex items-center justify-center gap-1"
                   onClick={() => toggleAuthState("REGISTER")}
                 >
-                  <UserPlus className="h-3 w-3" />
-                  Primeiro acesso / Definir senha
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Primeiro acesso? Cadastre-se aqui
                 </button>
                 <button
                   type="button"
-                  className="text-xs text-muted-foreground hover:text-primary font-medium transition-colors"
+                  className="text-[13px] text-brand-muted hover:text-brand-primary font-medium transition-colors"
                   onClick={() => toggleAuthState("FORGOT")}
                 >
                   Esqueci minha senha
@@ -205,11 +229,11 @@ export function LoginScreen() {
             ) : (
               <button
                 type="button"
-                className="text-xs text-muted-foreground hover:text-primary font-semibold transition-colors flex items-center justify-center gap-1 group"
+                className="text-[13px] text-brand-muted hover:text-brand-primary font-semibold transition-colors flex items-center justify-center gap-1 group"
                 onClick={() => toggleAuthState("LOGIN")}
               >
-                <ArrowLeft className="h-3 w-3 group-hover:-translate-x-0.5 transition-transform" />
-                Voltar para o Login
+                <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                Voltar para Autenticação
               </button>
             )}
           </div>

@@ -75,18 +75,18 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-[#F7F8FA] border-b border-[#D9CDCD]">
+              <TableRow className="bg-brand-light border-b border-borderLight h-12">
                 <TableHead className="w-10"></TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">ID</TableHead>
-                {userRole === "admin" && <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Colaborador</TableHead>}
-                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Razão Social</TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Linha</TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Tipo</TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Vigência</TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Status</TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Prioridade</TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Origem</TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-[#737D9A]">Ações</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">ID</TableHead>
+                {userRole === "admin" && <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Colaborador</TableHead>}
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Razão Social</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted align-middle text-center">Linha</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Tipo</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Vigência</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Status</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Prioridade</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Origem</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -99,12 +99,12 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
               )}
               {pendencias.map((p) => (
                 <React.Fragment key={p.id}>
-                  <TableRow className="hover:bg-[#E9ECF2] even:bg-[#F7F8FA]/50 transition-colors border-b border-[#D9CDCD]/50">
+                  <TableRow className="hover:bg-brand-light/80 even:bg-brand-light/30 transition-colors border-b border-borderLight/50">
                     <TableCell>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-7 w-7 text-brand-muted hover:text-brand-blue"
                         onClick={() => setExpandedId(expandedId === p.id ? null : p.id)}
                       >
                         {expandedId === p.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -219,41 +219,41 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                   </TableRow>
                   {expandedId === p.id && (
                     <TableRow key={`${p.id}-detail`}>
-                      <TableCell colSpan={colSpan} className="bg-[#F7F8FA] p-0 border-b border-[#D9CDCD]">
-                        <div className="grid md:grid-cols-2 gap-8 p-8">
+                      <TableCell colSpan={colSpan} className="bg-brand-light/50 p-0 border-b border-borderLight">
+                        <div className="grid md:grid-cols-2 gap-8 p-8 border-t-2 border-brand-orange/20">
                           <div className="space-y-6">
-                            <h4 className="text-xs font-bold text-[#1D2E5D] uppercase tracking-widest border-b border-[#D9CDCD] pb-2">Detalhes da Pendência</h4>
+                            <h4 className="text-sm font-bold text-brand-blue uppercase tracking-widest border-b border-borderLight pb-2">Detalhes da Pendência</h4>
 
-                            <div className="grid grid-cols-2 gap-y-4 text-sm">
-                              <div className="flex items-center gap-2 text-[#737D9A]">
-                                <Building2 className="h-4 w-4" />
-                                <span className="font-bold uppercase text-[10px]">Razão Social:</span>
+                            <div className="grid grid-cols-2 gap-y-5 text-sm">
+                              <div className="flex items-center gap-2 text-brand-muted">
+                                <Building2 className="h-4 w-4 text-brand-orange" />
+                                <span className="font-bold uppercase text-[11px] tracking-wider">Razão Social:</span>
                               </div>
-                              <span className="text-[#1D2E5D] font-medium">{p.razao_social}</span>
+                              <span className="text-brand-blue font-semibold">{p.razao_social}</span>
 
-                              <div className="flex items-center gap-2 text-[#737D9A]">
-                                <FileSpreadsheet className="h-4 w-4" />
-                                <span className="font-bold uppercase text-[10px]">Linha:</span>
+                              <div className="flex items-center gap-2 text-brand-muted">
+                                <FileSpreadsheet className="h-4 w-4 text-brand-orange" />
+                                <span className="font-bold uppercase text-[11px] tracking-wider">Linha:</span>
                               </div>
-                              <span className="text-[#1D2E5D] font-medium">{p.linha_planilha}</span>
+                              <span className="text-brand-blue font-semibold">{p.linha_planilha}</span>
 
-                              <span className="text-[#737D9A] font-bold uppercase text-[10px]">Tipo:</span>
-                              <span className="text-[#1D2E5D] font-medium">{p.tipo_implantacao}</span>
+                              <span className="text-brand-muted font-bold uppercase text-[11px] tracking-wider">Tipo:</span>
+                              <span className="text-brand-blue font-semibold">{p.tipo_implantacao}</span>
 
-                              <div className="flex items-center gap-2 text-[#737D9A]">
-                                <Fingerprint className="h-4 w-4" />
-                                <span className="font-bold uppercase text-[10px]">Fingerprint:</span>
+                              <div className="flex items-center gap-2 text-brand-muted">
+                                <Fingerprint className="h-4 w-4 text-brand-orange" />
+                                <span className="font-bold uppercase text-[11px] tracking-wider">Fingerprint:</span>
                               </div>
-                              <span className="text-[#1D2E5D] text-xs font-mono break-all">{p.fingerprint}</span>
+                              <span className="text-brand-blue text-xs font-mono break-all opacity-80">{p.fingerprint}</span>
                             </div>
 
                             {/* Erros */}
                             {p.erros && p.erros.length > 0 && (
                               <div>
-                                <p className="text-[10px] font-bold text-[#737D9A] mb-2 uppercase tracking-tight">Erros encontrados:</p>
+                                <p className="text-[11px] font-bold text-brand-muted mb-2 uppercase tracking-tight">Erros detectados pelo sistema:</p>
                                 <div className="flex flex-wrap gap-2">
                                   {p.erros.map((erro, i) => (
-                                    <Badge key={i} variant="outline" className="text-[11px] font-semibold border-red-200 bg-red-50 text-red-700 rounded-sm">
+                                    <Badge key={i} variant="outline" className="text-[11px] font-semibold border-red-200 bg-red-50 text-red-700 rounded-[6px] px-2 py-1">
                                       {erro}
                                     </Badge>
                                   ))}
@@ -262,20 +262,20 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                             )}
 
                             {/* Resumo */}
-                            <div className="bg-white p-4 rounded-lg border border-[#D9CDCD] shadow-sm">
-                              <p className="text-[10px] font-bold text-[#737D9A] mb-2 uppercase">Resumo / Ação recomendada:</p>
-                              <p className="text-sm text-[#1D2E5D] leading-relaxed">{p.texto_pendencia}</p>
+                            <div className="bg-white p-5 rounded-[12px] border border-borderLight shadow-sm">
+                              <p className="text-[11px] font-bold text-brand-orange mb-2 uppercase tracking-wider">Ação Recomendada Resolutiva:</p>
+                              <p className="text-[14px] text-brand-blue font-medium leading-relaxed">{p.texto_pendencia}</p>
                             </div>
 
                             {p.comentario_colaborador && (
-                              <div className="bg-[#EFF6FF] border-l-4 border-[#1D2E5D] p-4">
-                                <p className="text-[10px] font-bold text-[#1D2E5D] mb-2 uppercase">Comentário do colaborador:</p>
-                                <p className="text-sm text-[#1D2E5D] italic">"{p.comentario_colaborador}"</p>
+                              <div className="bg-blue-50/50 border-l-[3px] border-brand-primary p-4 rounded-r-[8px]">
+                                <p className="text-[11px] font-bold text-brand-primary mb-2 uppercase tracking-wider">Resposta do Usuário:</p>
+                                <p className="text-sm text-brand-blue italic">"{p.comentario_colaborador}"</p>
                               </div>
                             )}
 
-                            <p className="text-[10px] text-[#737D9A] font-bold uppercase font-mono">
-                              Atualizado: {p.atualizado_em ? new Date(p.atualizado_em).toLocaleString("pt-BR") : "—"}
+                            <p className="text-[11px] text-brand-muted font-bold uppercase tracking-wider bg-brand-light px-3 py-2 rounded-[6px] inline-block">
+                              Última atualização: {p.atualizado_em ? new Date(p.atualizado_em).toLocaleString("pt-BR") : "—"}
                             </p>
                           </div>
                           <HistoricoPanel pendenciaId={p.id} />

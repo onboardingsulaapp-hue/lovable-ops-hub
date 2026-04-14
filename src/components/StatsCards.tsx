@@ -25,15 +25,16 @@ export function StatsCards({ pendencias }: StatsCardsProps) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
       {cards.map((card) => (
-        <Card key={card.label} className="border border-[#D9CDCD] shadow-sm bg-white overflow-hidden group transition-all duration-300 hover:border-[#1D2E5D]/30 hover:translate-y-[-2px]">
-          <CardContent className="p-5">
+        <Card key={card.label} className="border border-borderLight shadow-[0px_2px_8px_rgba(0,0,0,0.04)] bg-white overflow-hidden group transition-all duration-300 hover:border-brand-blue/30 hover:shadow-[0px_4px_16px_rgba(29,46,93,0.08)] rounded-[12px] relative">
+          <div className={`absolute top-0 left-0 w-full h-1 ${card.bgColor.replace('bg-', 'bg-').replace('/10', '')}`} style={{ opacity: 0.8 }} />
+          <CardContent className="p-5 pt-6">
             <div className="flex flex-col gap-4">
               <div className={cn("p-2 rounded-lg w-fit transition-colors", card.bgColor)}>
-                <card.icon className={cn("h-5 w-5", card.color)} strokeWidth={2.5} />
+                <card.icon className={cn("h-5 w-5", card.color)} strokeWidth={2} />
               </div>
               <div className="space-y-1">
-                <p className="text-2xl font-black text-[#1D2E5D] tracking-tight">{card.value}</p>
-                <p className="text-[10px] font-bold text-[#737D9A] uppercase tracking-widest">{card.label}</p>
+                <p className="text-[26px] font-bold text-brand-blue tracking-tight leading-none">{card.value}</p>
+                <p className="text-[11px] font-semibold text-brand-muted uppercase tracking-widest">{card.label}</p>
               </div>
             </div>
           </CardContent>
