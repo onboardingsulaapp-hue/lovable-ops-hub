@@ -27,7 +27,7 @@ export const RULES_VALIDACAO_V1 = {
         "Todos casos Finalizados ?",
         "Criar Plano?",
         "Data de envio Operação",
-        "Op 1ª Criica",
+        "Op 1ª Critica",
         "Data - Liberação / Declinio / Devolução",
         "Identificação do Book",
         "Data do Envio do Book",

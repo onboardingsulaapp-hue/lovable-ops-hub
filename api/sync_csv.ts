@@ -3,7 +3,7 @@ import { getFirestore, verifyFirebaseIdToken } from './_utils/firebase-admin.js'
 import { FieldValue } from 'firebase-admin/firestore';
 import { cleanRow, processRow } from './_utils/rules-engine.js';
 import { getCsvHeaderOffset } from './_utils/csv-helper.js';
-import { parse } from 'csv-parse';
+import { parse } from 'csv-parse/sync';
 import Busboy from 'busboy';
 
 export const config = {
@@ -80,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Detectar onde o cabeçalho real começa
             const fromLine = await getCsvHeaderOffset(buffer);
             
-            const parser = parse(buffer, {
+            const records = parse(buffer, {
               columns: true,
               skip_empty_lines: true,
               trim: true,
@@ -89,7 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               from_line: fromLine // Pular as linhas de "lixo"
             });
 
-            parser.on('data', async (rawRow) => {
+            for (const rawRow of records) {
               result.linhas_total++;
               const row = cleanRow(rawRow);
 
@@ -112,35 +112,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               } catch (err) {
                 console.error(`Error processing line ${result.linhas_total}:`, err);
               }
+            }
+
+            result.linhas_com_pendencia = result.criadas + result.atualizadas;
+
+            await jobRef.update({
+              status: 'success',
+              result,
+              finished_at: FieldValue.serverTimestamp()
             });
 
-            parser.on('end', async () => {
-              result.linhas_com_pendencia = result.criadas + result.atualizadas;
-
-              await jobRef.update({
-                status: 'success',
-                result,
-                finished_at: FieldValue.serverTimestamp()
-              });
-
-              res.status(200).json({ ok: true, jobId, status: 'success', result });
-              resolve(true);
-            });
-
-            parser.on('error', async (err) => {
-              console.error('Parsing Error:', err);
-              await jobRef.update({
-                status: 'failed',
-                error: err.message,
-                finished_at: FieldValue.serverTimestamp()
-              });
-              res.status(500).json({ 
-                ok: false, 
-                error: `Erro ao processar CSV: ${err.message}`, 
-                hint: 'O formato do arquivo CSV pode ser inválido ou incompatível.' 
-              });
-              resolve(false);
-            });
+            res.status(200).json({ ok: true, jobId, status: 'success', result });
+            resolve(true);
             
           } catch (err: any) {
             console.error('File Processing Error:', err);
