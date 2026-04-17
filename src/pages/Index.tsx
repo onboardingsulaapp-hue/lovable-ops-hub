@@ -527,32 +527,30 @@ const Index = () => {
     const userToDelete = allUsers.find(u => u.id === id || u.email === id);
     if (!userToDelete) return;
 
+    if (!window.confirm(`Tem certeza que deseja excluir permanentemente o colaborador ${userToDelete.nome}? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
     try {
       const emailId = userToDelete.email.toLowerCase().trim();
 
-      // 1. Inativa em pre_cadastros (ID é o email)
+      // 1. Excluir de pre_cadastros
       try {
-        await updateDoc(doc(db, "pre_cadastros", emailId), {
-          status: "inativo",
-          atualizado_em: serverTimestamp()
-        });
+        await deleteDoc(doc(db, "pre_cadastros", emailId));
       } catch (err) {
         console.warn("[Firestore] pre_cadastros doc not found for delete", emailId);
       }
 
-      // 2. Inativa em usuários se houver UID
+      // 2. Excluir de usuarios se houver UID
       if (userToDelete.uid) {
-        await updateDoc(doc(db, "usuarios", userToDelete.uid), {
-          status: "inativo",
-          atualizado_em: serverTimestamp()
-        });
+        await deleteDoc(doc(db, "usuarios", userToDelete.uid));
       }
 
-      addAdminLog("Inativação de Colaborador", `${userToDelete.nome} foi desativado.`);
-      toast.success("Colaborador desativado.");
+      addAdminLog("Exclusão de Colaborador", `${userToDelete.nome} foi removido permanentemente.`);
+      toast.success("Colaborador excluído com sucesso.");
     } catch (e) {
-      console.error("Erro na inativação:", e);
-      toast.error("Erro na inativação.");
+      console.error("Erro na exclusão:", e);
+      toast.error("Erro ao excluir colaborador do banco de dados.");
     }
   };
 
