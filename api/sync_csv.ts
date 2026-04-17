@@ -100,27 +100,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               from_line: fromLine // Pular as linhas de "lixo"
             });
 
-            // Verificar se a coluna obrigatória "Congênere de origem" existe no cabeçalho
-            if (records.length > 0) {
-              const headers = Object.keys(records[0]);
-              console.log("[CSV] Colunas brutas encontradas:", headers);
+            // Validação de Cabeçalho Robusta
+            if (Array.isArray(records) && records.length > 0) {
+              const firstRecord = records[0];
+              const rawHeaders = Object.keys(firstRecord);
+              console.log("[CSV] Colunas brutas:", rawHeaders);
               
-              const firstRowCleaned = cleanRow(records[0]);
-              const cleanedHeaders = Object.keys(firstRowCleaned);
-              console.log("[CSV] Colunas mapeadas (canonical):", cleanedHeaders);
+              const firstRowCleaned = cleanRow(firstRecord);
+              const mappedHeaders = Object.keys(firstRowCleaned);
+              console.log("[CSV] Colunas mapeadas:", mappedHeaders);
 
-              const hasCongenere = cleanedHeaders.some(h => {
-                const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-                return norm(h) === norm("Congênere de origem");
-              });
+              // Função de normalização idêntica à do rules-engine para garantir paridade
+              const normalizeCol = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+              const targetNorm = normalizeCol("Congênere de origem");
+              const targetConsultor = normalizeCol("CONSULTOR DE ONBOARDING");
 
-              if (!hasCongenere) {
+              const hasCongenere = mappedHeaders.some(h => normalizeCol(h) === targetNorm);
+              const hasConsultor = mappedHeaders.some(h => normalizeCol(h) === targetConsultor);
+
+              if (!hasCongenere || !hasConsultor) {
+                const missing = [];
+                if (!hasCongenere) missing.push("'Congênere de origem'");
+                if (!hasConsultor) missing.push("'CONSULTOR DE ONBOARDING'");
+                
                 result.erros_processamento.push({
-                   erro: "Coluna 'Congênere de origem' não encontrada no CSV (verifique aliases)",
-                   detalhes: `Colunas mapeadas: ${cleanedHeaders.join(", ")}`,
+                   erro: `Coluna(s) obrigatória(s) não encontrada(s): ${missing.join(", ")}`,
+                   detalhes: `Colunas identificadas no seu CSV: ${rawHeaders.join(", ")}`,
                    severidade: "critical"
                 });
               }
+            } else if (records.length === 0) {
+               console.warn("[CSV] Arquivo parece estar vazio (apenas cabeçalho ou sem dados)");
             }
 
             for (const rawRow of records) {
