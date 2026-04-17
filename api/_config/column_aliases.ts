@@ -24,7 +24,11 @@ export const COLUMN_ALIASES = {
         "Congênere de origem",
         "Congenere de origem",
         "Congênere Origem",
-        "Congenere Origem"
+        "Congenere Origem",
+        "CONGÊNERE DE ORIGEM",
+        "CONGENERE DE ORIGEM",
+        "CONGÊNERE ORIGEM",
+        "CONGENERE ORIGEM"
     ],
     "CONSULTOR DE ONBOARDING": [
         "CONSULTOR DE ONBOARDING",

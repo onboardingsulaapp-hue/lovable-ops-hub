@@ -1,4 +1,8 @@
 import { COLUMN_ALIASES as aliasesJson } from '../_config/column_aliases.js';
+import { RULES_VALIDACAO_V1 as rulesJson } from '../_config/rules_validacao_v1.js';
+import { COLAB_MAP as collaboratorsJson } from '../_config/colaboradores_map.js';
+import { getFirestore } from '../_utils/firebase-admin.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * Verifica se um valor é considerado vazio (null, undefined, "-", "", etc)

@@ -103,11 +103,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Verificar se a coluna obrigatória "Congênere de origem" existe no cabeçalho
             if (records.length > 0) {
               const headers = Object.keys(records[0]);
-              // A cleanRow já resolve aliases, mas aqui checamos se o canônico "Congênere de origem" está presente após cleanRow
+              console.log("[CSV] Colunas brutas encontradas:", headers);
+              
               const firstRowCleaned = cleanRow(records[0]);
-              if (!firstRowCleaned["Congênere de origem"]) {
+              const cleanedHeaders = Object.keys(firstRowCleaned);
+              console.log("[CSV] Colunas mapeadas (canonical):", cleanedHeaders);
+
+              const hasCongenere = cleanedHeaders.some(h => {
+                const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+                return norm(h) === norm("Congênere de origem");
+              });
+
+              if (!hasCongenere) {
                 result.erros_processamento.push({
                    erro: "Coluna 'Congênere de origem' não encontrada no CSV (verifique aliases)",
+                   detalhes: `Colunas mapeadas: ${cleanedHeaders.join(", ")}`,
                    severidade: "critical"
                 });
               }

@@ -14,6 +14,6 @@ export const CSV_LAYOUT = {
         "Produto",
         "Status da Empresa",
         "Inicio da Vigência de Contrato",
-        "Representante da Implantação"
+        "CONSULTOR DE ONBOARDING"
     ]
 };
