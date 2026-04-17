@@ -27,6 +27,7 @@ const emptyFilters: Filters = { colaborador_id: "", status: "", prioridade: "", 
 const Index = () => {
   const { profile: user, loading, logout } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
+  const [preUsers, setPreUsers] = useState<User[]>([]);
   const [pendencias, setPendencias] = useState<Pendencia[]>([]);
   const [listenerError, setListenerError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
@@ -56,9 +57,27 @@ const Index = () => {
         }) as User[];
         setUsers(usersData);
       },
-      (error) => {
-        console.error("onSnapshot Erro permissão Usuarios:", error);
-      }
+      (error) => console.error("onSnapshot Erro Usuarios:", error)
+    );
+
+    const unsubscribePre = onSnapshot(
+      collection(db, "pre_cadastros"),
+      (snapshot) => {
+        const preData = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id, // O ID aqui é o e-mail
+            nome: data.nome,
+            email: data.email,
+            role: data.role as UserRole,
+            status: data.status as "ativo" | "inativo",
+            criado_em: data.criado_em,
+            atualizado_em: data.atualizado_em
+          };
+        }) as User[];
+        setPreUsers(preData);
+      },
+      (error) => console.error("onSnapshot Erro PreCadastros:", error)
     );
 
     const qLogs = query(collection(db, "admin_logs"), orderBy("dataHora", "desc"));
@@ -66,15 +85,37 @@ const Index = () => {
       qLogs,
       (snapshot) => {
         const logsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AdminLog[];
-        setAdminLogs(logsData.slice(0, 50)); // manter só os ultimos 50 exibidos
+        setAdminLogs(logsData.slice(0, 50));
       },
-      (error) => {
-        console.error("onSnapshot Erro Logs:", error);
-      }
+      (error) => console.error("onSnapshot Erro Logs:", error)
     );
 
-    return () => { unsubscribeUsers(); unsubscribeLogs(); };
+    return () => { unsubscribeUsers(); unsubscribePre(); unsubscribeLogs(); };
   }, [user]);
+
+  // Merge de Usuários (Pre-cadastro + Ativos)
+  const allUsers = useMemo(() => {
+    const map = new Map<string, User>();
+    
+    // Adicionar pré-cadastros primeiro
+    preUsers.forEach(u => {
+      const email = u.email?.toLowerCase().trim();
+      if (email) map.set(email, u);
+    });
+
+    // Sobrescrever com dados de usuários ativos (que já têm UID e perfil logado)
+    users.forEach(u => {
+      const email = u.email?.toLowerCase().trim();
+      if (email) {
+        const existing = map.get(email);
+        map.set(email, { ...existing, ...u });
+      } else {
+        map.set(u.id, u);
+      }
+    });
+
+    return Array.from(map.values());
+  }, [users, preUsers]);
 
   // 2. Escutar pendencias em tempo real (Filtrado para colaborador)
   useEffect(() => {
@@ -451,22 +492,30 @@ const Index = () => {
 
   const handleEditUser = async (id: string, updates: Partial<User>) => {
     try {
-      // Atualiza em pre_cadastros
-      await updateDoc(doc(db, "pre_cadastros", id), {
-        ...updates,
-        atualizado_em: serverTimestamp()
-      });
+      const target = allUsers.find(u => u.id === id || u.email === id);
+      if (!target) return;
 
-      // Se o usuário já ativou a conta, atualizar também o registro definitivo usuarios/{uid}
-      const userDoc = users.find(u => u.id === id || u.email === id);
-      if (userDoc?.uid) {
-        await updateDoc(doc(db, "usuarios", userDoc.uid), {
+      const emailId = target.email.toLowerCase().trim();
+      
+      // 1. Atualiza em pre_cadastros (sempre existe por e-mail)
+      try {
+        await updateDoc(doc(db, "pre_cadastros", emailId), {
+          ...updates,
+          atualizado_em: serverTimestamp()
+        });
+      } catch (err) {
+        console.warn("[Firestore] pre_cadastros doc not found for", emailId);
+      }
+
+      // 2. Se o usuário já ativou a conta, atualizar usuários/{uid}
+      if (target.uid) {
+        await updateDoc(doc(db, "usuarios", target.uid), {
           ...updates,
           atualizado_em: serverTimestamp()
         });
       }
 
-      addAdminLog("Edição de Colaborador", `O colaborador ${id} foi alterado.`);
+      addAdminLog("Edição de Colaborador", `O colaborador ${target.nome} foi alterado.`);
       toast.success("Dados do colaborador atualizados.");
     } catch (e) {
       console.error("Erro ao editar colaborador:", e);
@@ -475,17 +524,23 @@ const Index = () => {
   };
 
   const handleDeleteUser = async (id: string) => {
-    const userToDelete = users.find(u => u.id === id || u.email === id);
+    const userToDelete = allUsers.find(u => u.id === id || u.email === id);
     if (!userToDelete) return;
 
     try {
-      // Inativa em pre_cadastros
-      await updateDoc(doc(db, "pre_cadastros", id), {
-        status: "inativo",
-        atualizado_em: serverTimestamp()
-      });
+      const emailId = userToDelete.email.toLowerCase().trim();
 
-      // Inativa em usuarios se existir
+      // 1. Inativa em pre_cadastros (ID é o email)
+      try {
+        await updateDoc(doc(db, "pre_cadastros", emailId), {
+          status: "inativo",
+          atualizado_em: serverTimestamp()
+        });
+      } catch (err) {
+        console.warn("[Firestore] pre_cadastros doc not found for delete", emailId);
+      }
+
+      // 2. Inativa em usuários se houver UID
       if (userToDelete.uid) {
         await updateDoc(doc(db, "usuarios", userToDelete.uid), {
           status: "inativo",
@@ -543,7 +598,7 @@ const Index = () => {
               <div className="flex items-center gap-2 sm:gap-3">
                 <AdminLogsPanel logs={adminLogs} />
                 <CollaboratorManagerDialog
-                  users={users}
+                  users={allUsers}
                   onAdd={handleAddUser}
                   onEdit={handleEditUser}
                   onDelete={handleDeleteUser}
