@@ -11,7 +11,7 @@ const REQUIRED_HEADER_FIELDS = [
   "Produto",
   "Status da Empresa",
   "Inicio da Vigência de Contrato",
-  "Representante da Implantação",
+  "CONSULTOR DE ONBOARDING",
 ];
 
 const HEADER_STARTS_WITH = "Carimbo de data/hora";

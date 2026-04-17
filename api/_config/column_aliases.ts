@@ -5,11 +5,6 @@ export const COLUMN_ALIASES = {
         "Inicio Vigencia Contrato",
         "Início Vigência Contrato"
     ],
-    "Representante da Implantação": [
-        "Representante da Implantação",
-        "Representante Implantação",
-        "Rep. Implantação"
-    ],
     "Status da Empresa": [
         "Status da Empresa",
         "Status Empresa",
@@ -33,7 +28,14 @@ export const COLUMN_ALIASES = {
     ],
     "CONSULTOR DE ONBOARDING": [
         "CONSULTOR DE ONBOARDING",
+        "CONSULTORA DE ONBOARDING",
         "Consultor de Onboarding",
-        "Consultor Onboarding"
+        "Consultora de Onboarding",
+        "Consultor Onboarding",
+        "Consultora Onboarding",
+        "Representante da Implantação",
+        "Representante Implantação",
+        "Rep. Implantação",
+        "Rep Implantação"
     ]
 };

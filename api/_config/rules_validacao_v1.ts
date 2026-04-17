@@ -32,7 +32,8 @@ export const RULES_VALIDACAO_V1 = {
         "Identificação do Book",
         "Data do Envio do Book",
         "Data do envio do e-mail de Liberação",
-        "Congênere de origem"
+        "Congênere de origem",
+        "CONSULTOR DE ONBOARDING"
     ],
     "conditional_required": [
         {

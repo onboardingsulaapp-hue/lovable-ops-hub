@@ -56,9 +56,12 @@ function compareNormalize(text: string): string {
  * Resolve o nome da coluna caso existam aliases
  */
 function getCanonicalColumn(colName: string): string {
-  const lowerCol = colName.trim().toLowerCase();
+  const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const inputNorm = norm(colName);
+  
   for (const [canonical, aliases] of Object.entries(aliasesJson)) {
-    if ((aliases as string[]).some(a => a.toLowerCase() === lowerCol)) {
+    if (norm(canonical) === inputNorm) return canonical;
+    if ((aliases as string[]).some(a => norm(a) === inputNorm)) {
       return canonical;
     }
   }
@@ -170,7 +173,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   const itens = evaluateRules(row);
   
   // Resolve Collab (Mudança para CONSULTOR DE ONBOARDING)
-  const representante = row["CONSULTOR DE ONBOARDING"] || row["Representante da Implantação"] || "";
+  const representante = row["CONSULTOR DE ONBOARDING"] || "";
   const { id: collabId, mapped } = resolveCollaborator(representante);
   
   if (!mapped) {

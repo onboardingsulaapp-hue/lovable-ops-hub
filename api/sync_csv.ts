@@ -141,7 +141,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     else result.atualizadas++;
 
                     // Verificar se houve falha no mapeamento de colaborador
-                    const representante = row["CONSULTOR DE ONBOARDING"] || row["Representante da Implantação"] || "";
+                    const representante = row["CONSULTOR DE ONBOARDING"] || "";
                     if (representante && !result.nao_mapeados.includes(representante)) {
                       // Se processRow adicionou o item de erro de mapeamento, capturamos aqui
                       // Nota: No rules-engine, se não mapeado, itens.push("Sem responsável...")
