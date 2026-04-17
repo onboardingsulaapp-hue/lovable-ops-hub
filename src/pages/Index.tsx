@@ -305,133 +305,126 @@ const Index = () => {
     }, 1500);
   };
 
+  /**
+   * Disparo Dinâmico de E-mails via EmailJS
+   * Instrução de Configuração do Template:
+   * No painel do EmailJS, o campo "To Email" deve ser {{to_email}}
+   * O corpo do e-mail deve conter {{{my_html_content}}} (chaves triplas para HTML)
+   */
   const handleSendEmailToBackend = async (prazo: number) => {
+    // Chaves de acesso (Favor preencher no .env ou aqui se for teste rápido)
+    const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || "";
+    const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || "";
+    const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || "";
+
     if (!user || (user.role !== "admin" && user.role !== "socio")) {
       toast.error("Você não tem permissão para disparar e-mails de cobrança.");
       return;
     }
 
+    if (!SERVICE_ID || !TEMPLATE_ID || !PUBLIC_KEY) {
+      toast.error("Erro de configuração: Chaves do EmailJS não encontradas no ambiente.");
+      return;
+    }
+
     try {
-      // 1. Agrupar pendências por colaborador
-      // Filtramos apenas as que estão 'Pendente' e não deletadas
-      const pendingItems = activePendencias.filter(p => p.status === "Pendente");
+      // 1. Agrupar apenas as pendências que estão visíveis e com status 'Pendente'
+      const activePending = activePendencias.filter(p => p.status === "Pendente" && !p.isDeleted);
       const pendsByColab: Record<string, Pendencia[]> = {};
       
-      pendingItems.forEach(p => {
+      activePending.forEach(p => {
         const key = p.colaborador_id || p.colaborador_nome || "sem_identificacao";
         if (!pendsByColab[key]) pendsByColab[key] = [];
         pendsByColab[key].push(p);
       });
 
       const colabGroups = Object.entries(pendsByColab);
-      const totalColaboradores = colabGroups.length;
+      const totalColab = colabGroups.length;
 
-      if (totalColaboradores === 0) {
-        toast.info("Não há pendências em aberto para notificar.");
+      if (totalColab === 0) {
+        toast.info("Não há pendências em aberto para notificar nos filtros atuais.");
         return;
       }
 
-      const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-      const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-      const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+      let metricas = { enviados: 0, falharam: 0, sem_email: 0 };
+      toast.loading(`Iniciando disparos para ${totalColab} colaboradores...`, { id: "email-batch" });
 
-      if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
-        console.error("Configurações do EmailJS ausentes (.env)");
-        toast.error("Erro de configuração: Variáveis de ambiente do EmailJS não encontradas.");
-        return;
-      }
-
-      let metricas = {
-        enviados: 0,
-        falharam: 0,
-        sem_email: 0,
-        sem_uid: 0
-      };
-
-      toast.loading(`Processando envio para ${totalColaboradores} colaboradores...`, { id: "email-batch" });
-
-      const appUrl = window.location.origin;
-
-      for (const [colabKey, pends] of colabGroups) {
-        // Tentar encontrar o email do colaborador
-        // Se a chave for o ID, buscamos na lista de users. Se for nome, tentamos por nome.
-        const targetUser = users.find(u => u.id === colabKey || u.uid === colabKey || u.nome === colabKey);
+      for (let i = 0; i < totalColab; i++) {
+        const [colabKey, pends] = colabGroups[i];
         
-        if (!targetUser) {
-          metricas.sem_uid++;
-          continue;
-        }
-
-        if (!targetUser.email) {
+        // Localizar colaborador nos dados carregados
+        const target = users.find(u => u.id === colabKey || u.uid === colabKey || u.nome === colabKey);
+        
+        if (!target || !target.email) {
           metricas.sem_email++;
+          console.warn(`[EmailJS] Pulando ${colabKey}: E-mail não encontrado.`);
           continue;
         }
 
-        toast.loading(`Enviando para ${targetUser.nome} (${metricas.enviados + metricas.falharam + 1}/${totalColaboradores})...`, { id: "email-batch" });
+        // Atualizar feedback visual de progresso
+        toast.loading(`Enviando ${i + 1} de ${totalColab}: ${target.nome}...`, { id: "email-batch" });
 
-        // Gerar a tabela HTML com TODAS as pendências do colaborador
-        let tableRowsHtml = "";
+        // Gerar Tabela HTML para o colaborador atual
+        let rowsHtml = "";
         pends.forEach(p => {
-          const itensStr = Array.isArray(p.pendencias) ? p.pendencias.join(", ") : p.texto_pendencia;
-          tableRowsHtml += `
+          const itens = Array.isArray(p.pendencias) ? p.pendencias.join(", ") : (p.texto_pendencia || "Verificar no sistema");
+          rowsHtml += `
             <tr>
-              <td style="padding: 10px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 14px;"><strong>${p.razao_social}</strong></td>
-              <td style="padding: 10px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 14px; text-align: center;">${p.tipo_implantacao || "N/A"}</td>
-              <td style="padding: 10px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 14px; text-align: center;">${p.data_vigencia || "N/A"}</td>
-              <td style="padding: 10px; border: 1px solid #D9CDCD; color: #737D9A; font-size: 14px;">${itensStr}</td>
+              <td style="padding: 8px; border: 1px solid #ddd; font-size: 13px;">${p.razao_social}</td>
+              <td style="padding: 8px; border: 1px solid #ddd; font-size: 13px; text-align: center;">${p.tipo_implantacao || "Saúde"}</td>
+              <td style="padding: 8px; border: 1px solid #ddd; font-size: 13px; text-align: center;">${p.data_vigencia}</td>
+              <td style="padding: 8px; border: 1px solid #ddd; font-size: 13px; color: #d9534f;">${itens}</td>
             </tr>
           `;
         });
 
-        const htmlBody = `
-          <p>Você possui pendências que exigem regularização imediata no sistema.</p>
-          <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; margin-top: 15px; margin-bottom: 20px;">
-            <thead style="background-color: #F7F8FA;">
-              <tr>
-                <th style="padding: 12px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 12px; text-transform: uppercase; text-align: left;">Razão Social</th>
-                <th style="padding: 12px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 12px; text-transform: uppercase;">Produto</th>
-                <th style="padding: 12px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 12px; text-transform: uppercase;">Vigência</th>
-                <th style="padding: 12px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 12px; text-transform: uppercase; text-align: left;">Itens a Regularizar</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${tableRowsHtml}
-            </tbody>
-          </table>
-          <p><strong>Link de acesso:</strong> <a href="${appUrl}">${appUrl}</a></p>
-          <p style="font-size: 12px; color: #666;">Por favor, acesse o link acima, realize as correções e marque os itens como Corrigidos no painel.</p>
+        const my_html_content = `
+          <div style="font-family: Arial, sans-serif; color: #333;">
+            <p>Olá <strong>${target.nome}</strong>,</p>
+            <p>Você possui as seguintes pendências aguardando regularização:</p>
+            <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+              <thead>
+                <tr style="background-color: #f2f2f2;">
+                  <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Empresa</th>
+                  <th style="padding: 10px; border: 1px solid #ddd;">Produto</th>
+                  <th style="padding: 10px; border: 1px solid #ddd;">Vigência</th>
+                  <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Pendências</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+            <p>Por favor, acesse o sistema para regularizar: <a href="${window.location.origin}">${window.location.origin}</a></p>
+            <p style="font-size: 12px; color: #777; margin-top: 20px;">Esta é uma mensagem automática do Sistema Onboarding Control Plan.</p>
+          </div>
         `;
 
         try {
-          await emailjs.send(
-            EMAILJS_SERVICE_ID,
-            EMAILJS_TEMPLATE_ID,
-            {
-              to_name: targetUser.nome,
-              to_email: targetUser.email,
-              subject: `Pendências em aberto - ${pends.length}`,
-              my_html_content: htmlBody,
-              count: pends.length
-            },
-            EMAILJS_PUBLIC_KEY
-          );
+          await emailjs.send(SERVICE_ID, TEMPLATE_ID, {
+            to_name: target.nome,
+            to_email: target.email,
+            my_html_content: my_html_content,
+            total_cases: pends.length
+          }, PUBLIC_KEY);
+          
           metricas.enviados++;
-          await new Promise(resolve => setTimeout(resolve, 500)); // Delay para evitar bloqueios
-        } catch (error) {
-          console.error(`Erro ao enviar EmailJS para ${targetUser.nome}:`, error);
+        } catch (err) {
+          console.error(`[EmailJS] Falha ao enviar para ${target.nome}:`, err);
           metricas.falharam++;
+        }
+
+        // Delay de 500ms entre disparos conforme regra de UX
+        if (i < totalColab - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
 
-      toast.success(`Resumo do envio: ${metricas.enviados} enviados, ${metricas.falharam} falhas.`, { id: "email-batch" });
-      if (metricas.sem_email > 0 || metricas.sem_uid > 0) {
-        toast.warning(`${metricas.sem_email} sem e-mail e ${metricas.sem_uid} sem UID.`);
-      }
-
-      addAdminLog("Disparo de E-mails em Lote", `Resultado: ${metricas.enviados} enviados, ${metricas.falharam} falhas.`);
-    } catch (e) {
-      console.error("Erro no processo de disparo de emails:", e);
-      toast.error("Erro interno ao processar e-mails.", { id: "email-batch" });
+      toast.success(`Processo concluído: ${metricas.enviados} enviados, ${metricas.falharam} falhas.`, { id: "email-batch" });
+      addAdminLog("Disparo de E-mails", `${metricas.enviados} envios bem-sucedidos via EmailJS.`);
+    } catch (error) {
+      console.error("[EmailJS Lote] Erro fatal:", error);
+      toast.error("Erro ao processar lote de e-mails.", { id: "email-batch" });
     }
   };
 
