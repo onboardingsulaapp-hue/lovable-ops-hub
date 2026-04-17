@@ -57,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 3. Processar Multipart Form Data usando Busboy
     const busboy = Busboy({ headers: req.headers });
-    let result = {
+    let result: any = {
       linhas_total: 0,
       linhas_gate: 0,
       linhas_com_pendencia: 0,
@@ -65,7 +65,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       criadas: 0,
       atualizadas: 0,
       nao_mapeados: [] as string[],
-      amostras: [] as string[],
+      status_unicos_encontrados: {} as Record<string, number>,
+      exemplos_de_pendencia: [] as any[],
+      exemplos_ignorados: [] as any[],
       erros_processamento: [] as any[]
     };
 
@@ -98,25 +100,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               from_line: fromLine // Pular as linhas de "lixo"
             });
 
+            // Verificar se a coluna obrigatória "Congênere de origem" existe no cabeçalho
+            if (records.length > 0) {
+              const headers = Object.keys(records[0]);
+              // A cleanRow já resolve aliases, mas aqui checamos se o canônico "Congênere de origem" está presente após cleanRow
+              const firstRowCleaned = cleanRow(records[0]);
+              if (!firstRowCleaned["Congênere de origem"]) {
+                result.erros_processamento.push({
+                   erro: "Coluna 'Congênere de origem' não encontrada no CSV (verifique aliases)",
+                   severidade: "critical"
+                });
+              }
+            }
+
             for (const rawRow of records) {
               result.linhas_total++;
               const row = cleanRow(rawRow);
 
               try {
+                // Rastrear status únicos para o diagnóstico
+                const rawStatus = row['Status da Empresa'] || 'N/A';
+                result.status_unicos_encontrados[rawStatus] = (result.status_unicos_encontrados[rawStatus] || 0) + 1;
+
                 const resRow = await processRow(row, result.linhas_total, uid);
 
-                if (resRow.action === 'ignored_by_gate') {
+                if (resRow.action === 'ignored_by_gate' || resRow.action === 'ignored_by_year') {
                   result.ignoradas_por_status++;
-                } else if (resRow.action === 'criada') {
-                  result.criadas++;
-                  result.linhas_gate++;
-                  if (result.amostras.length < 10) result.amostras.push(`[CRIADA] ${row['Razão Social do Cliente']}`);
-                } else if (resRow.action === 'editada') {
-                  result.atualizadas++;
-                  result.linhas_gate++;
-                  if (result.amostras.length < 10) result.amostras.push(`[ATUALIZADA] ${row['Razão Social do Cliente']}`);
-                } else if (resRow.action === 'sem_mudanca' || resRow.action === 'no_pendency') {
-                  result.linhas_gate++;
+                  if (result.exemplos_ignorados.length < 5) {
+                    result.exemplos_ignorados.push({
+                      razao_social: row['Razão Social do Cliente'] || 'N/A',
+                      status: rawStatus,
+                      motivo: resRow.action
+                    });
+                  }
+                } else {
+                  result.linhas_gate++; // Linhas que passaram pelo Gate (total - ignoradas)
+
+                  if (resRow.action === 'criada' || resRow.action === 'editada') {
+                    if (resRow.action === 'criada') result.criadas++;
+                    else result.atualizadas++;
+
+                    // Verificar se houve falha no mapeamento de colaborador
+                    const representante = row["CONSULTOR DE ONBOARDING"] || row["Representante da Implantação"] || "";
+                    if (representante && !result.nao_mapeados.includes(representante)) {
+                      // Se processRow adicionou o item de erro de mapeamento, capturamos aqui
+                      // Nota: No rules-engine, se não mapeado, itens.push("Sem responsável...")
+                      // Aqui poderíamos checar o payload enviado mas resRow não retorna o payload
+                      // Então confiamos no contador geral e amostra
+                      // Para este requisito, se o representante for capturado e não estiver mapeado no sistema (usuarios/map)
+                      // No rules-engine temos resolveCollaborator.
+                    }
+
+                    if (result.exemplos_de_pendencia.length < 5) {
+                      result.exemplos_de_pendencia.push({
+                        razao_social: row['Razão Social do Cliente'] || 'N/A',
+                        status: rawStatus,
+                        tipo: resRow.action,
+                        // Notamos que não temos o array 'itens' aqui direto, mas o processRow logou
+                        // Para simplificar, registramos a ocorrência
+                      });
+                    }
+                  }
                 }
               } catch (err: any) {
                 console.error(`Error processing line ${result.linhas_total}:`, err);

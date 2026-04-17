@@ -81,6 +81,9 @@ export interface SyncJobResult {
   atualizadas: number;
   nao_mapeados: string[];
   amostras: string[];
+  status_unicos_encontrados?: Record<string, number>;
+  exemplos_de_pendencia?: any[];
+  exemplos_ignorados?: any[];
 }
 
 export interface Job {

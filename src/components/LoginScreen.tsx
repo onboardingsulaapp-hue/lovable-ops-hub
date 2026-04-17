@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogIn, Shield, UserPlus, Loader2, KeyRound, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import logoImg from "@/assets/brand/sulamerica_logo.png";
-import logo130Img from "@/assets/brand/sulamerica_130anos.png";
 import wavesImg from "@/assets/brand/brand_waves.svg";
 
 type AuthState = "LOGIN" | "REGISTER" | "FORGOT";
@@ -97,10 +96,11 @@ export function LoginScreen() {
         className="absolute bottom-[-10%] right-[-5%] w-3/4 max-w-[1000px] opacity-70 pointer-events-none z-0"
       />
 
-      {/* Selo 130 Anos opcional (topo) */}
-      <div className="absolute top-8 left-8 z-0 hidden md:block">
-        <img src={logo130Img} alt="130 Anos" className="h-16 opacity-80" />
+      {/* Logo no canto superior esquerdo */}
+      <div className="absolute top-8 left-8 z-20">
+        <img src={logoImg} alt="SulAmérica" className="h-10 md:h-12 object-contain" />
       </div>
+
 
       <Card className="w-full max-w-[420px] bg-white border-none shadow-[0px_8px_24px_rgba(29,46,93,0.08)] rounded-[12px] z-10 animate-in fade-in zoom-in duration-300">
         <CardHeader className="text-center pb-2 pt-8">

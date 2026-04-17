@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import emailjs from "@emailjs/browser";
 import UploadCsvPanel from "@/components/jobs/UploadCsvPanel";
 import { Pendencia, User, UserRole, TipoImplantacao, AdminLog } from "@/types/pendencia";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,7 +19,7 @@ import { SendEmailDialog } from "@/components/socio/SendEmailDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { auth, db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, Timestamp, orderBy } from "firebase/firestore";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import logoImg from "@/assets/brand/sulamerica_logo.png";
 
 const emptyFilters: Filters = { colaborador_id: "", status: "", prioridade: "", origem: "", data_inicio: "", data_fim: "", tipo_implantacao: "" };
@@ -38,7 +39,7 @@ const Index = () => {
 
     // Escutamos apenas se for admin, pois as Rules bloqueiam listagem de usuarios para não admins
     const unsubscribeUsers = onSnapshot(
-      collection(db, "usuarios"), 
+      collection(db, "usuarios"),
       (snapshot) => {
         const usersData = snapshot.docs.map((doc) => {
           const data = doc.data();
@@ -79,7 +80,7 @@ const Index = () => {
   useEffect(() => {
     if (!user) return;
     let pendenciasQuery = collection(db, "pendencias") as any;
-    
+
     if (user.role === "colaborador") {
       pendenciasQuery = query(collection(db, "pendencias"), where("colaborador_id", "==", user.id));
     }
@@ -90,14 +91,14 @@ const Index = () => {
         setListenerError(null);
         const pendsData = snapshot.docs.map(doc => {
           const data = doc.data();
-          
+
           // Compatibilidade In-memory (Fallback preventivo)
           const statusVal = data.status || "Pendente";
           const prioriVal = data.prioridade || "Media";
           const origemVal = data.origem || "Manual";
           const colabIdVal = data.colaborador_id || "sem_responsavel";
           const delVal = data.isDeleted === undefined ? false : data.isDeleted;
-          
+
           return {
             id: doc.id,
             ...data,
@@ -143,10 +144,10 @@ const Index = () => {
     if (filters.data_inicio || filters.data_fim) {
       result = result.filter((p) => {
         if (!p.data_vigencia) return false;
-        
+
         let dateVal: string;
         const val = p.data_vigencia as any;
-        
+
         if (val && typeof val === 'object' && 'seconds' in val) {
           dateVal = new Date(val.seconds * 1000).toISOString().split('T')[0];
         } else {
@@ -171,43 +172,43 @@ const Index = () => {
         dataHora: new Date().toISOString(),
         detalhes: detalhes || null
       });
-    } catch(e) {
+    } catch (e) {
       console.error("Erro ao salvar log de auditoria", e);
     }
   };
 
   const executeUpdateAndHistory = async (id: string, updates: Partial<Pendencia>, acao: string, detalhes?: string) => {
     const now = new Date().toISOString();
-    
+
     // Mapeamento extra se passar colaborador antigo, converter
     const finalUpdates: any = { ...updates, atualizado_em: now };
-    
+
     if ((updates as any).colaborador) {
-       const nomeAlvo = (updates as any).colaborador.trim();
-       const u = users.find(x => x.nome.trim() === nomeAlvo);
-       finalUpdates.colaborador_nome = nomeAlvo;
-       if (u) {
-         finalUpdates.colaborador_id = u.id;
-       } else {
-         console.warn("Colaborador não encontrado para o nome:", nomeAlvo);
-         toast.error(`Não foi possível encontrar o ID de ${nomeAlvo}. Verifique se ele está ativo.`);
-       }
-       delete finalUpdates.colaborador;
+      const nomeAlvo = (updates as any).colaborador.trim();
+      const u = users.find(x => x.nome.trim() === nomeAlvo);
+      finalUpdates.colaborador_nome = nomeAlvo;
+      if (u) {
+        finalUpdates.colaborador_id = u.id;
+      } else {
+        console.warn("Colaborador não encontrado para o nome:", nomeAlvo);
+        toast.error(`Não foi possível encontrar o ID de ${nomeAlvo}. Verifique se ele está ativo.`);
+      }
+      delete finalUpdates.colaborador;
     }
 
     if (updates.erros || updates.pendencias) {
-       finalUpdates.itens_pendentes = updates.erros || updates.pendencias;
-       delete finalUpdates.erros;
-       delete finalUpdates.pendencias;
+      finalUpdates.itens_pendentes = updates.erros || updates.pendencias;
+      delete finalUpdates.erros;
+      delete finalUpdates.pendencias;
     }
-    
+
     // Não escrever no doc o array de history antigo
     delete finalUpdates.historico;
 
     try {
       // 1. Atualizar o Doc
       await updateDoc(doc(db, "pendencias", id), finalUpdates);
-      
+
       // 2. Gravar o Histórico na subcollection
       await addDoc(collection(db, `pendencias/${id}/historico`), {
         acao,
@@ -233,7 +234,7 @@ const Index = () => {
     if (updates.status === "OK") actionStr = "validada";
     if (updates.status === "Pendente") actionStr = "reaberta";
     if (updates.prioridade && !updates.status) actionStr = "prioridade_alterada";
-    
+
     executeUpdateAndHistory(id, updates, actionStr, updates.comentario_colaborador);
   };
 
@@ -255,7 +256,7 @@ const Index = () => {
   const handleCreatePendencia = async (data: any) => {
     const now = new Date().toISOString();
     const fingerprint = generateFingerprint(data.razao_social, data.linha_planilha, data.tipo_implantacao);
-    
+
     const colabTarget = users.find(u => u.nome === data.colaborador);
 
     const newPendenciaData = {
@@ -264,7 +265,7 @@ const Index = () => {
       data_vigencia: data.data_vigencia,
       status: "Pendente",
       prioridade: data.prioridade,
-      itens_pendentes: [], 
+      itens_pendentes: [],
       texto_pendencia: data.texto_pendencia,
       origem: "Manual",
       criado_em: now,
@@ -278,20 +279,20 @@ const Index = () => {
     };
 
     try {
-       const docRef = await addDoc(collection(db, "pendencias"), newPendenciaData);
-       await addDoc(collection(db, `pendencias/${docRef.id}/historico`), {
-          acao: "criada",
-          usuario_id: user?.id,
-          usuario_nome: user?.nome,
-          perfil: user?.role,
-          timestamp: now,
-          comentario: "Pendência inserida manualmente"
-       });
-       addAdminLog("Criação de Pendência Manual", `Criada para ${data.colaborador}.`);
-       toast.success("Pendência criada com sucesso.");
+      const docRef = await addDoc(collection(db, "pendencias"), newPendenciaData);
+      await addDoc(collection(db, `pendencias/${docRef.id}/historico`), {
+        acao: "criada",
+        usuario_id: user?.id,
+        usuario_nome: user?.nome,
+        perfil: user?.role,
+        timestamp: now,
+        comentario: "Pendência inserida manualmente"
+      });
+      addAdminLog("Criação de Pendência Manual", `Criada para ${data.colaborador}.`);
+      toast.success("Pendência criada com sucesso.");
     } catch (e) {
-       toast.error("Erro ao criar pendência.");
-       console.error(e);
+      toast.error("Erro ao criar pendência.");
+      console.error(e);
     }
   };
 
@@ -304,8 +305,134 @@ const Index = () => {
     }, 1500);
   };
 
-  const handleSendEmailToBackend = (prazo: number) => {
-    toast.success(`E-mails de alerta disparados. (Prazo configurado: ${prazo} dias)`);
+  const handleSendEmailToBackend = async (prazo: number) => {
+    if (!user || (user.role !== "admin" && user.role !== "socio")) {
+      toast.error("Você não tem permissão para disparar e-mails de cobrança.");
+      return;
+    }
+
+    try {
+      // 1. Agrupar pendências por colaborador
+      // Filtramos apenas as que estão 'Pendente' e não deletadas
+      const pendingItems = activePendencias.filter(p => p.status === "Pendente");
+      const pendsByColab: Record<string, Pendencia[]> = {};
+      
+      pendingItems.forEach(p => {
+        const key = p.colaborador_id || p.colaborador_nome || "sem_identificacao";
+        if (!pendsByColab[key]) pendsByColab[key] = [];
+        pendsByColab[key].push(p);
+      });
+
+      const colabGroups = Object.entries(pendsByColab);
+      const totalColaboradores = colabGroups.length;
+
+      if (totalColaboradores === 0) {
+        toast.info("Não há pendências em aberto para notificar.");
+        return;
+      }
+
+      const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+      const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+      const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
+      if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
+        console.error("Configurações do EmailJS ausentes (.env)");
+        toast.error("Erro de configuração: Variáveis de ambiente do EmailJS não encontradas.");
+        return;
+      }
+
+      let metricas = {
+        enviados: 0,
+        falharam: 0,
+        sem_email: 0,
+        sem_uid: 0
+      };
+
+      toast.loading(`Processando envio para ${totalColaboradores} colaboradores...`, { id: "email-batch" });
+
+      const appUrl = window.location.origin;
+
+      for (const [colabKey, pends] of colabGroups) {
+        // Tentar encontrar o email do colaborador
+        // Se a chave for o ID, buscamos na lista de users. Se for nome, tentamos por nome.
+        const targetUser = users.find(u => u.id === colabKey || u.uid === colabKey || u.nome === colabKey);
+        
+        if (!targetUser) {
+          metricas.sem_uid++;
+          continue;
+        }
+
+        if (!targetUser.email) {
+          metricas.sem_email++;
+          continue;
+        }
+
+        toast.loading(`Enviando para ${targetUser.nome} (${metricas.enviados + metricas.falharam + 1}/${totalColaboradores})...`, { id: "email-batch" });
+
+        // Gerar a tabela HTML com TODAS as pendências do colaborador
+        let tableRowsHtml = "";
+        pends.forEach(p => {
+          const itensStr = Array.isArray(p.pendencias) ? p.pendencias.join(", ") : p.texto_pendencia;
+          tableRowsHtml += `
+            <tr>
+              <td style="padding: 10px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 14px;"><strong>${p.razao_social}</strong></td>
+              <td style="padding: 10px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 14px; text-align: center;">${p.tipo_implantacao || "N/A"}</td>
+              <td style="padding: 10px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 14px; text-align: center;">${p.data_vigencia || "N/A"}</td>
+              <td style="padding: 10px; border: 1px solid #D9CDCD; color: #737D9A; font-size: 14px;">${itensStr}</td>
+            </tr>
+          `;
+        });
+
+        const htmlBody = `
+          <p>Você possui pendências que exigem regularização imediata no sistema.</p>
+          <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; margin-top: 15px; margin-bottom: 20px;">
+            <thead style="background-color: #F7F8FA;">
+              <tr>
+                <th style="padding: 12px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 12px; text-transform: uppercase; text-align: left;">Razão Social</th>
+                <th style="padding: 12px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 12px; text-transform: uppercase;">Produto</th>
+                <th style="padding: 12px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 12px; text-transform: uppercase;">Vigência</th>
+                <th style="padding: 12px; border: 1px solid #D9CDCD; color: #1D2E5D; font-size: 12px; text-transform: uppercase; text-align: left;">Itens a Regularizar</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRowsHtml}
+            </tbody>
+          </table>
+          <p><strong>Link de acesso:</strong> <a href="${appUrl}">${appUrl}</a></p>
+          <p style="font-size: 12px; color: #666;">Por favor, acesse o link acima, realize as correções e marque os itens como Corrigidos no painel.</p>
+        `;
+
+        try {
+          await emailjs.send(
+            EMAILJS_SERVICE_ID,
+            EMAILJS_TEMPLATE_ID,
+            {
+              to_name: targetUser.nome,
+              to_email: targetUser.email,
+              subject: `Pendências em aberto - ${pends.length}`,
+              my_html_content: htmlBody,
+              count: pends.length
+            },
+            EMAILJS_PUBLIC_KEY
+          );
+          metricas.enviados++;
+          await new Promise(resolve => setTimeout(resolve, 500)); // Delay para evitar bloqueios
+        } catch (error) {
+          console.error(`Erro ao enviar EmailJS para ${targetUser.nome}:`, error);
+          metricas.falharam++;
+        }
+      }
+
+      toast.success(`Resumo do envio: ${metricas.enviados} enviados, ${metricas.falharam} falhas.`, { id: "email-batch" });
+      if (metricas.sem_email > 0 || metricas.sem_uid > 0) {
+        toast.warning(`${metricas.sem_email} sem e-mail e ${metricas.sem_uid} sem UID.`);
+      }
+
+      addAdminLog("Disparo de E-mails em Lote", `Resultado: ${metricas.enviados} enviados, ${metricas.falharam} falhas.`);
+    } catch (e) {
+      console.error("Erro no processo de disparo de emails:", e);
+      toast.error("Erro interno ao processar e-mails.", { id: "email-batch" });
+    }
   };
 
   // Gestão Auth Mapeada no Firestore
@@ -323,7 +450,7 @@ const Index = () => {
       });
       addAdminLog("Cadastro de Colaborador", `${newUser.nome} (${newUser.email}) foi pré-autorizado.`);
       toast.success("Colaborador pré-autorizado no sistema.");
-    } catch(e) {
+    } catch (e) {
       console.error("Erro ao pré-autorizar colaborador:", e);
       toast.error("Erro ao pré-autorizar colaborador.");
     }
@@ -331,26 +458,26 @@ const Index = () => {
 
   const handleEditUser = async (id: string, updates: Partial<User>) => {
     try {
-       // Atualiza em pre_cadastros
-       await updateDoc(doc(db, "pre_cadastros", id), { 
-         ...updates, 
-         atualizado_em: serverTimestamp() 
-       });
-       
-       // Se o usuário já ativou a conta, atualizar também o registro definitivo usuarios/{uid}
-       const userDoc = users.find(u => u.id === id || u.email === id);
-       if (userDoc?.uid) {
-         await updateDoc(doc(db, "usuarios", userDoc.uid), {
-           ...updates,
-           atualizado_em: serverTimestamp()
-         });
-       }
+      // Atualiza em pre_cadastros
+      await updateDoc(doc(db, "pre_cadastros", id), {
+        ...updates,
+        atualizado_em: serverTimestamp()
+      });
 
-       addAdminLog("Edição de Colaborador", `O colaborador ${id} foi alterado.`);
-       toast.success("Dados do colaborador atualizados.");
-    } catch(e) {
-       console.error("Erro ao editar colaborador:", e);
-       toast.error("Erro ao editar colaborador.");
+      // Se o usuário já ativou a conta, atualizar também o registro definitivo usuarios/{uid}
+      const userDoc = users.find(u => u.id === id || u.email === id);
+      if (userDoc?.uid) {
+        await updateDoc(doc(db, "usuarios", userDoc.uid), {
+          ...updates,
+          atualizado_em: serverTimestamp()
+        });
+      }
+
+      addAdminLog("Edição de Colaborador", `O colaborador ${id} foi alterado.`);
+      toast.success("Dados do colaborador atualizados.");
+    } catch (e) {
+      console.error("Erro ao editar colaborador:", e);
+      toast.error("Erro ao editar colaborador.");
     }
   };
 
@@ -360,14 +487,14 @@ const Index = () => {
 
     try {
       // Inativa em pre_cadastros
-      await updateDoc(doc(db, "pre_cadastros", id), { 
+      await updateDoc(doc(db, "pre_cadastros", id), {
         status: "inativo",
         atualizado_em: serverTimestamp()
       });
-      
+
       // Inativa em usuarios se existir
       if (userToDelete.uid) {
-        await updateDoc(doc(db, "usuarios", userToDelete.uid), { 
+        await updateDoc(doc(db, "usuarios", userToDelete.uid), {
           status: "inativo",
           atualizado_em: serverTimestamp()
         });
@@ -375,7 +502,7 @@ const Index = () => {
 
       addAdminLog("Inativação de Colaborador", `${userToDelete.nome} foi desativado.`);
       toast.success("Colaborador desativado.");
-    } catch(e) {
+    } catch (e) {
       console.error("Erro na inativação:", e);
       toast.error("Erro na inativação.");
     }
@@ -405,14 +532,14 @@ const Index = () => {
     <div className="min-h-screen bg-brand-light font-sans text-brand-blue">
       {/* Faixa superior institucional (Laranja SulAmérica) */}
       <div className="w-full h-1.5 bg-brand-orange z-20 relative"></div>
-      
+
       <header className="bg-white sticky top-0 z-10 border-b border-borderLight shadow-sm transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between">
           <div className="flex items-center gap-4 sm:gap-6">
             <img src={logoImg} alt="SulAmérica" className="h-[38px] object-contain" />
-            
+
             <div className="h-8 w-px bg-borderLight hidden sm:block"></div>
-            
+
             <div className="hidden sm:flex flex-col">
               <h1 className="text-base font-bold text-brand-blue tracking-tight leading-none uppercase">Operações Corporativas</h1>
               <span className="text-[10px] text-brand-orange font-bold uppercase tracking-widest mt-1">Conformidade e Pendências</span>
@@ -438,10 +565,10 @@ const Index = () => {
                   {user.role === "admin" ? "Administrador" : user.role === "socio" ? "Sócio Gestor" : "Colaborador"}
                 </span>
               </div>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => logout()} 
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => logout()}
                 className="text-brand-muted hover:bg-brand-light hover:text-brand-orange h-[38px] w-[38px] rounded-full transition-colors"
                 title="Sair do Sistema"
               >
@@ -453,15 +580,15 @@ const Index = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
-        
+
         {listenerError && (
           <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md shadow-sm mb-4">
-             <div className="flex items-center border-b border-red-200 pb-2 mb-2">
-                 <ShieldAlert className="h-5 w-5 text-red-500 mr-2" />
-                 <h3 className="text-red-800 font-bold">Falha Crítica de Regra de Segurança (Permission Denied)</h3>
-             </div>
-             <p className="text-red-700 text-sm">{listenerError}</p>
-             <p className="text-red-600 text-xs mt-2 italic">Dica: Seus dados ainda existem no provedor, mas a interface foi barrada pela camada de segurança do Firestore. Rodar diagnóstico acima para mais detalhes.</p>
+            <div className="flex items-center border-b border-red-200 pb-2 mb-2">
+              <ShieldAlert className="h-5 w-5 text-red-500 mr-2" />
+              <h3 className="text-red-800 font-bold">Falha Crítica de Regra de Segurança (Permission Denied)</h3>
+            </div>
+            <p className="text-red-700 text-sm">{listenerError}</p>
+            <p className="text-red-600 text-xs mt-2 italic">Dica: Seus dados ainda existem no provedor, mas a interface foi barrada pela camada de segurança do Firestore. Rodar diagnóstico acima para mais detalhes.</p>
           </div>
         )}
 
@@ -471,7 +598,7 @@ const Index = () => {
             <span className="text-border">/</span>
             <span className="text-brand-blue">Painel de Pendências</span>
           </div>
-          
+
           <div className="bg-white p-8 rounded-[12px] border border-border/60 shadow-[0px_4px_16px_rgba(29,46,93,0.04)] flex items-center justify-between flex-wrap gap-6 overflow-hidden relative group">
             <div className="absolute top-0 left-0 w-1.5 h-full bg-brand-orange" />
             <div className="relative z-10">
@@ -481,12 +608,12 @@ const Index = () => {
               <p className="text-[14px] text-brand-muted mt-2 max-w-2xl leading-relaxed">
                 {user.role === "admin"
                   ? "Central corporativa para gestão, importação em lote (CSV) e auditoria."
-                  : user.role === "socio" 
+                  : user.role === "socio"
                     ? "Painel executivo com visão macro de processos e KPIs operacionais da empresa."
                     : "Espaço dedicado para visualizar os relógios e regularizar pendências da sua alçada."}
               </p>
             </div>
-            
+
             <div className="flex items-center gap-3 relative z-10">
               {user.role === "admin" && (
                 <>
@@ -502,19 +629,32 @@ const Index = () => {
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-xl bg-[#0f172a] text-white overflow-y-auto max-h-[85vh] border-none shadow-xl">
+                      <DialogHeader>
+                        <DialogTitle className="text-white">Central de Sincronização CSV</DialogTitle>
+                        <DialogDescription className="text-slate-400">
+                          Escolha um arquivo Excel/CSV no formato padrão para atualizar a base de pendências.
+                        </DialogDescription>
+                      </DialogHeader>
                       <div className="pt-4">
                         <UploadCsvPanel />
                       </div>
                     </DialogContent>
                   </Dialog>
-                  <CreatePendenciaDialog 
-                    colaboradores={colaboradores} 
-                    onSubmit={handleCreatePendencia} 
+                  <CreatePendenciaDialog
+                    colaboradores={colaboradores}
+                    onSubmit={handleCreatePendencia}
+                  />
+                  <SendEmailDialog 
+                    pendencias={filteredPendencias} 
+                    onConfirm={handleSendEmailToBackend} 
                   />
                 </>
               )}
               {user.role === "socio" && (
-                <SendEmailDialog pendencias={filteredPendencias} onConfirm={handleSendEmailToBackend} />
+                <SendEmailDialog 
+                  pendencias={filteredPendencias} 
+                  onConfirm={handleSendEmailToBackend} 
+                />
               )}
             </div>
           </div>

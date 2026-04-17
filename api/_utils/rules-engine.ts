@@ -1,8 +1,15 @@
-import { getFirestore } from './firebase-admin.js';
-import { FieldValue } from 'firebase-admin/firestore';
-import { RULES_VALIDACAO_V1 as rulesJson } from '../_config/rules_validacao_v1.js';
-import { COLAB_MAP as collaboratorsJson } from '../_config/colaboradores_map.js';
 import { COLUMN_ALIASES as aliasesJson } from '../_config/column_aliases.js';
+
+/**
+ * Verifica se um valor é considerado vazio (null, undefined, "-", "", etc)
+ * "SIM" e "NÃO" não são considerados vazios.
+ */
+function isEmpty(value: any): boolean {
+  if (value === null || value === undefined) return true;
+  const str = value.toString().trim();
+  if (str === "" || str === "-" || str === "—" || str === "–") return true;
+  return false;
+}
 
 /**
  * Normaliza strings para IDs e comparações (remover acentos, espaços, etc)
@@ -94,7 +101,7 @@ export function evaluateRules(row: any): string[] {
 
   // 1. Required fields
   for (const field of (rulesJson.required_fields as string[])) {
-    if (!row[field] || row[field].toString().trim() === "") {
+    if (isEmpty(row[field])) {
       itens.push(field);
     }
   }
@@ -106,7 +113,7 @@ export function evaluateRules(row: any): string[] {
 
     if (matches) {
       for (const reqField of (cond.then_require as string[])) {
-        if ((!row[reqField] || row[reqField].toString().trim() === "") && !itens.includes(reqField)) {
+        if (isEmpty(row[reqField]) && !itens.includes(reqField)) {
           itens.push(reqField);
         }
       }
@@ -115,7 +122,7 @@ export function evaluateRules(row: any): string[] {
 
   // 3. Marketing block
   const marketingFields = rulesJson.marketing.fields as string[];
-  const anyMarketingEmpty = marketingFields.some(f => !row[f] || row[f].toString().trim() === "");
+  const anyMarketingEmpty = marketingFields.some(f => isEmpty(row[f]));
   if (anyMarketingEmpty) {
     const mktName = rulesJson.marketing.pendencia_name_if_any_empty;
     if (!itens.includes(mktName)) {
@@ -145,18 +152,29 @@ export function resolveCollaborator(name: string): { id: string | null, mapped: 
 export async function processRow(row: any, lineNum: number, adminUid: string) {
   const db = getFirestore();
   
+  // Extrair o ano da Vigência para filtrar (ignorar 2025 para baixo)
+  const vigenciaStr = (row["Inicio da Vigência de Contrato"] || "").toString();
+  const matchAno = vigenciaStr.match(/\b(20\d{2})\b/);
+  if (matchAno) {
+    const anoVigencia = parseInt(matchAno[1], 10);
+    if (anoVigencia <= 2025) {
+      console.log(`[Regra Data] Linha ignorada. Ano ${anoVigencia} <= 2025.`);
+      return { action: 'ignored_by_year' };
+    }
+  }
+
   // Gate
   if (!passesGate(row)) return { action: 'ignored_by_gate' };
 
   // Rules
   const itens = evaluateRules(row);
   
-  // Resolve Collab
-  const representante = row["Representante da Implantação"] || "";
+  // Resolve Collab (Mudança para CONSULTOR DE ONBOARDING)
+  const representante = row["CONSULTOR DE ONBOARDING"] || row["Representante da Implantação"] || "";
   const { id: collabId, mapped } = resolveCollaborator(representante);
   
   if (!mapped) {
-    itens.push("Sem responsável (mapear representante)");
+    itens.push("Sem responsável (mapear consultor onboarding)");
   }
 
   // Se nada pendente, ignorar

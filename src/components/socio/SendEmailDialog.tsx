@@ -27,9 +27,8 @@ export function SendEmailDialog({ pendencias, onConfirm }: SendEmailDialogProps)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="default" className="bg-blue-600 hover:bg-blue-700 shadow-md">
-          <Mail className="h-4 w-4 mr-2" />
-          Cobrar por E-mail
+        <Button variant="default" className="bg-[#1D2E5D] hover:bg-[#1D2E5D]/90 shadow-md font-bold py-5 px-6">
+          📧 Enviar e-mails de pendências
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -84,10 +83,9 @@ export function SendEmailDialog({ pendencias, onConfirm }: SendEmailDialogProps)
           <Button 
             onClick={handleConfirm} 
             disabled={!prazo || prazo <= 0 || involvedCollaborators.length === 0}
-            className="bg-blue-600 hover:bg-blue-700 transition-colors"
+            className="bg-[#1D2E5D] hover:bg-[#1D2E5D]/90 transition-colors font-bold"
           >
-            <Send className="h-4 w-4 mr-2" />
-            Efetuar Disparo
+            🚀 Efetuar Disparo
           </Button>
         </div>
       </DialogContent>

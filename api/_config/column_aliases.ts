@@ -24,5 +24,16 @@ export const COLUMN_ALIASES = {
         "Data envio e-mail de Liberação",
         "Data envio email de Liberação",
         "Data do envio do email de Liberação"
+    ],
+    "Congênere de origem": [
+        "Congênere de origem",
+        "Congenere de origem",
+        "Congênere Origem",
+        "Congenere Origem"
+    ],
+    "CONSULTOR DE ONBOARDING": [
+        "CONSULTOR DE ONBOARDING",
+        "Consultor de Onboarding",
+        "Consultor Onboarding"
     ]
 };

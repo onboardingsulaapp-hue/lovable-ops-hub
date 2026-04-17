@@ -31,7 +31,8 @@ export const RULES_VALIDACAO_V1 = {
         "Data - Liberação / Declinio / Devolução",
         "Identificação do Book",
         "Data do Envio do Book",
-        "Data do envio do e-mail de Liberação"
+        "Data do envio do e-mail de Liberação",
+        "Congênere de origem"
     ],
     "conditional_required": [
         {
