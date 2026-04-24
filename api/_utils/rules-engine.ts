@@ -231,7 +231,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   const representante = row["CONSULTOR DE ONBOARDING"] || "";
   const { id: collabId, mapped } = resolveCollaborator(representante);
   
-  if (!mapped) {
+  if (!mapped && itens.length > 0) {
     itens.push("Sem responsável (mapear consultor onboarding)");
   }
 

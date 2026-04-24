@@ -124,7 +124,7 @@ def process_job(job_id: str, job_data: dict):
         representante = row.get("Representante da Implantação", "")
         uid, is_mapped = resolve_collaborator(representante)
 
-        if not is_mapped:
+        if not is_mapped and len(itens_pendentes) > 0:
             itens_pendentes.append("Sem responsável (mapear representante)")
             if representante not in nao_mapeados:
                 nao_mapeados.append(representante)
