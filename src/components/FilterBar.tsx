@@ -19,6 +19,7 @@ interface FilterBarProps {
   filters: Filters;
   onFiltersChange: (filters: Filters) => void;
   colaboradores: { id: string; nome: string }[];
+  userRole?: string;
 }
 
 const emptyFilters: Filters = {
@@ -31,7 +32,7 @@ const emptyFilters: Filters = {
   tipo_implantacao: "",
 };
 
-export function FilterBar({ filters, onFiltersChange, colaboradores }: FilterBarProps) {
+export function FilterBar({ filters, onFiltersChange, colaboradores, userRole }: FilterBarProps) {
   const hasFilters = Object.values(filters).some((v) => v !== "");
 
   return (
@@ -53,7 +54,7 @@ export function FilterBar({ filters, onFiltersChange, colaboradores }: FilterBar
           </Button>
         )}
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-6">
         <div className="space-y-2">
           <label className="text-[10px] font-bold text-[#737D9A] uppercase tracking-wider block">Data início</label>
           <Input
@@ -72,20 +73,22 @@ export function FilterBar({ filters, onFiltersChange, colaboradores }: FilterBar
             className="h-10 text-sm border-[#D9CDCD] focus:ring-[#1D2E5D] focus:border-[#1D2E5D]"
           />
         </div>
-        <div className="space-y-2">
-          <label className="text-[10px] font-bold text-[#737D9A] uppercase tracking-wider block">Colaborador</label>
-          <Select value={filters.colaborador_id} onValueChange={(v) => onFiltersChange({ ...filters, colaborador_id: v === "all" ? "" : v })}>
-            <SelectTrigger className="h-10 text-sm border-[#D9CDCD] focus:ring-[#1D2E5D]">
-              <SelectValue placeholder="Selecione..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Ver Todos</SelectItem>
-              {colaboradores.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {(userRole === "admin" || userRole === "socio") && (
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-[#737D9A] uppercase tracking-wider block">Colaborador</label>
+            <Select value={filters.colaborador_id} onValueChange={(v) => onFiltersChange({ ...filters, colaborador_id: v === "all" ? "" : v })}>
+              <SelectTrigger className="h-10 text-sm border-[#D9CDCD] focus:ring-[#1D2E5D]">
+                <SelectValue placeholder="Selecione..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Ver Todos</SelectItem>
+                {colaboradores.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="space-y-2">
           <label className="text-[10px] font-bold text-[#737D9A] uppercase tracking-wider block">Status Atual</label>
           <Select value={filters.status} onValueChange={(v) => onFiltersChange({ ...filters, status: v === "all" ? "" : v })}>

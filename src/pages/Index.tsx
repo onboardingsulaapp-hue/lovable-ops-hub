@@ -189,10 +189,30 @@ const Index = () => {
         let dateVal: string;
         const val = p.data_vigencia as any;
 
+        // 1. Caso Timestamp do Firebase
         if (val && typeof val === 'object' && 'seconds' in val) {
           dateVal = new Date(val.seconds * 1000).toISOString().split('T')[0];
         } else {
-          dateVal = p.data_vigencia.toString();
+          const str = p.data_vigencia.toString().trim();
+          // 2. Caso formato DD/MM/YYYY
+          if (str.includes('/')) {
+            const parts = str.split('/');
+            if (parts.length === 3) {
+              const [d, m, y] = parts;
+              // Normalizar para YYYY-MM-DD para comparação de string correta
+              dateVal = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+            } else {
+              dateVal = str;
+            }
+          } else {
+            // 3. Tentar parse genérico (ISO ou outros)
+            const d = new Date(str);
+            if (!isNaN(d.getTime())) {
+              dateVal = d.toISOString().split('T')[0];
+            } else {
+              dateVal = str;
+            }
+          }
         }
 
         if (filters.data_inicio && dateVal < filters.data_inicio) return false;
@@ -706,9 +726,12 @@ const Index = () => {
           </div>
         </div>
 
-        {(user.role === "admin" || user.role === "socio") && (
-          <FilterBar filters={filters} onFiltersChange={setFilters} colaboradores={colaboradores} />
-        )}
+        <FilterBar 
+          filters={filters} 
+          onFiltersChange={setFilters} 
+          colaboradores={colaboradores} 
+          userRole={user.role} 
+        />
 
         {user.role === "socio" ? (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
