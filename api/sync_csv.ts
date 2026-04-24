@@ -89,7 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             // Detectar onde o cabeçalho real começa
-            const fromLine = await getCsvHeaderOffset(buffer);
+            const fromLine = await getCsvHeaderOffset(csvText);
             
             const records = parse(csvText, {
               columns: true,
@@ -142,7 +142,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const rawStatus = row['Status da Empresa'] || 'N/A';
                 result.status_unicos_encontrados[rawStatus] = (result.status_unicos_encontrados[rawStatus] || 0) + 1;
 
-                const resRow = await processRow(row, result.linhas_total, uid);
+                // Calcular a linha real no arquivo original (fromLine é a linha do cabeçalho)
+                // A primeira linha de dados é fromLine + 1
+                const lineInFile = fromLine + result.linhas_total;
+                const resRow = await processRow(row, lineInFile, uid);
 
                 if (resRow.action === 'ignored_by_gate' || resRow.action === 'ignored_by_year') {
                   result.ignoradas_por_status++;

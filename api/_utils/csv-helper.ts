@@ -52,8 +52,7 @@ export function createDynamicParser(options: any = {}) {
  * Helper para detectar e pular o lixo do CSV
  * Retorna o índice da linha (1-based) onde o cabeçalho foi encontrado
  */
-export async function getCsvHeaderOffset(buffer: Buffer): Promise<number> {
-  const content = buffer.toString('utf-8');
+export async function getCsvHeaderOffset(content: string): Promise<number> {
   const lines = content.split(/\r?\n/);
   const marker = CSV_LAYOUT.header_detection.starts_with;
   
