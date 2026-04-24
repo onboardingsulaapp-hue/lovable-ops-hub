@@ -57,6 +57,36 @@ function compareNormalize(text: string): string {
 }
 
 /**
+ * Converte string de data (DD/MM/YYYY ou YYYY-MM-DD) em objeto Date
+ */
+function parseDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const clean = dateStr.trim();
+  
+  // Formato brasileiro DD/MM/YYYY
+  const brMatch = clean.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (brMatch) {
+    const day = parseInt(brMatch[1], 10);
+    const month = parseInt(brMatch[2], 10) - 1;
+    const year = parseInt(brMatch[3], 10);
+    const d = new Date(year, month, day);
+    // Validar se a data é real (ex: evitar 31/02)
+    if (d.getFullYear() === year && d.getMonth() === month && d.getDate() === day) {
+      return d;
+    }
+  }
+  
+  // Formato ISO YYYY-MM-DD
+  const isoMatch = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const d = new Date(clean);
+    if (!isNaN(d.getTime())) return d;
+  }
+  
+  return null;
+}
+
+/**
  * Resolve o nome da coluna caso existam aliases
  */
 function getCanonicalColumn(colName: string): string {
@@ -159,14 +189,35 @@ export function resolveCollaborator(name: string): { id: string | null, mapped: 
 export async function processRow(row: any, lineNum: number, adminUid: string) {
   const db = getFirestore();
   
-  // Extrair o ano da Vigência para filtrar (ignorar 2025 para baixo)
+  // Extrair a Vigência para filtrar (Permitir apenas >= 2026 e < hoje)
   const vigenciaStr = (row["Inicio da Vigência de Contrato"] || "").toString();
-  const matchAno = vigenciaStr.match(/\b(20\d{2})\b/);
-  if (matchAno) {
-    const anoVigencia = parseInt(matchAno[1], 10);
+  const dataVigencia = parseDate(vigenciaStr);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0); // Resetar horas para comparar apenas a data
+
+  if (dataVigencia) {
+    const anoVigencia = dataVigencia.getFullYear();
+    
+    // 1. Ignorar se for anterior a 2026
     if (anoVigencia <= 2025) {
       console.log(`[Regra Data] Linha ignorada. Ano ${anoVigencia} <= 2025.`);
       return { action: 'ignored_by_year' };
+    }
+    
+    // 2. Ignorar se for hoje ou no futuro
+    if (dataVigencia >= hoje) {
+      console.log(`[Regra Data] Linha ignorada. Data ${vigenciaStr} >= Hoje (${hoje.toLocaleDateString('pt-BR')}).`);
+      return { action: 'ignored_by_future' };
+    }
+  } else {
+    // Fallback: Se não conseguir parsear a data completa, tenta capturar o ano por regex
+    const matchAno = vigenciaStr.match(/\b(20\d{2})\b/);
+    if (matchAno) {
+      const anoVigencia = parseInt(matchAno[1], 10);
+      if (anoVigencia <= 2025) {
+        console.log(`[Regra Data] Linha ignorada (fallback ano). Ano ${anoVigencia} <= 2025.`);
+        return { action: 'ignored_by_year' };
+      }
     }
   }
 

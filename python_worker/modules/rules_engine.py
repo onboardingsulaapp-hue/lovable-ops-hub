@@ -7,7 +7,9 @@ If empty, no pendencia should be created.
 
 import json
 import os
-from typing import List
+import re
+from datetime import datetime
+from typing import List, Tuple
 
 CONFIG_DIR = os.path.join(os.path.dirname(__file__), "..", "config")
 
@@ -65,3 +67,55 @@ def evaluate(row: dict) -> List[str]:
             itens.append(pending_name)
 
     return itens
+
+
+def parse_date(date_str: str) -> datetime | None:
+    if not date_str:
+        return None
+    date_str = date_str.strip()
+    
+    # DD/MM/YYYY
+    match = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", date_str)
+    if match:
+        try:
+            return datetime(int(match.group(3)), int(match.group(2)), int(match.group(1)))
+        except ValueError:
+            return None
+            
+    # YYYY-MM-DD
+    match = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", date_str)
+    if match:
+        try:
+            return datetime.fromisoformat(date_str)
+        except ValueError:
+            return None
+            
+    return None
+
+
+def passes_date_filter(row: dict) -> Tuple[bool, str]:
+    """
+    Returns (passes, reason).
+    Only allows dates >= 2026 and < today.
+    """
+    vigencia_str = str(row.get("Inicio da Vigência de Contrato", ""))
+    dt = parse_date(vigencia_str)
+    hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    if dt:
+        # Regra 1: Ano >= 2026
+        if dt.year <= 2025:
+            return False, f"Ano {dt.year} <= 2025"
+        # Regra 2: Antes de hoje
+        if dt >= hoje:
+            return False, f"Data {vigencia_str} >= hoje"
+        return True, ""
+    else:
+        # Fallback: tentar capturar o ano por regex se o parse falhar
+        match = re.search(r"\b(20\d{2})\b", vigencia_str)
+        if match:
+            ano = int(match.group(1))
+            if ano <= 2025:
+                return False, f"Ano {ano} <= 2025 (fallback)"
+    
+    return True, ""

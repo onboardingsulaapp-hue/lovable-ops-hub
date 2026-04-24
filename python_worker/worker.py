@@ -28,7 +28,7 @@ from modules.firestore_repo import (
 )
 from modules.storage_repo import download_csv
 from modules.csv_reader import read_csv
-from modules.rules_engine import passes_gate, evaluate
+from modules.rules_engine import passes_gate, evaluate, passes_date_filter
 from modules.fingerprint import generate as make_fingerprint
 from modules.collaborator_resolver import resolve as resolve_collaborator
 from modules.pendencias_service import upsert as upsert_pendencia
@@ -100,8 +100,15 @@ def process_job(job_id: str, job_data: dict):
         from modules.rules_engine import _load_rules
         rules = _load_rules()
 
-        # Gate: only process allowed status
+        # Gate 1: allowed status
         if not passes_gate(row, rules):
+            ignoradas_por_status += 1
+            continue
+
+        # Gate 2: date filter (>= 2026 and < today)
+        ok, reason = passes_date_filter(row)
+        if not ok:
+            print(f"[Worker] Linha ignorada por data: {reason}")
             ignoradas_por_status += 1
             continue
 
