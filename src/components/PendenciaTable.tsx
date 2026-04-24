@@ -110,7 +110,9 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                         {expandedId === p.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </Button>
                     </TableCell>
-                    <TableCell className="text-xs font-mono text-muted-foreground">{p.id}</TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground" title={p.id}>
+                      {p.id.length > 10 ? `${p.id.substring(0, 10)}...` : p.id}
+                    </TableCell>
                     {userRole === "admin" && <TableCell className="text-sm font-medium">{p.colaborador_nome}</TableCell>}
                     <TableCell className="text-sm max-w-[160px] truncate" title={p.razao_social}>{p.razao_social}</TableCell>
                     <TableCell className="text-sm text-center">{p.linha_planilha}</TableCell>
