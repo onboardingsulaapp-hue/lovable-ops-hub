@@ -43,15 +43,22 @@ export function SocioCharts({ pendencias }: SocioChartsProps) {
   const colaboradorData = useMemo(() => {
     const counts: Record<string, { total: number, pendente: number }> = {};
     pendencias.forEach(p => {
-      const nome = p.colaborador_nome || "Sem Atribuição";
-      if (!counts[nome]) counts[nome] = { total: 0, pendente: 0 };
-      counts[nome].total += 1;
-      if (p.status?.toLowerCase() === "pendente") counts[nome].pendente += 1;
+      const nome = p.colaborador_nome?.trim();
+      // Usamos "Sem Responsável" internamente para agrupar, mas vamos filtrar na saída
+      const key = !nome || ["sem_responsavel", "sem_id", "sem_id_manual", "sem atribuição"].includes(nome.toLowerCase()) 
+        ? "HIDDEN_UNASSIGNED" 
+        : nome;
+
+      if (!counts[key]) counts[key] = { total: 0, pendente: 0 };
+      counts[key].total += 1;
+      if (p.status?.toLowerCase() === "pendente") counts[key].pendente += 1;
     });
+
     return Object.entries(counts)
+      .filter(([name]) => name !== "HIDDEN_UNASSIGNED") // Esconde a categoria sem responsável
       .map(([name, data]) => ({ name, ...data }))
       .sort((a, b) => b.total - a.total)
-      .slice(0, 10); // Top 10
+      .slice(0, 10);
   }, [pendencias]);
 
   // Aggregate data for Tipo Implantação
@@ -60,7 +67,6 @@ export function SocioCharts({ pendencias }: SocioChartsProps) {
     pendencias.forEach(p => {
       let rawType = p.tipo_implantacao || "Outros";
       
-      // Normalização para o gráfico: Saúde vs Odonto independente de acentuação e caixa
       const norm = rawType.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
       if (norm.includes("SAUDE")) rawType = "SAÚDE";
       else if (norm.includes("ODONTO")) rawType = "ODONTO";
@@ -70,29 +76,26 @@ export function SocioCharts({ pendencias }: SocioChartsProps) {
     return Object.entries(counts).map(([name, value], idx) => ({ name, value, color: COLORS[idx % COLORS.length] }));
   }, [pendencias]);
 
-  // Aggregate over time (By data_vigencia month/year)
-  const timeData = useMemo(() => {
-    const history: Record<string, number> = {};
+  // Aggregate data for Pendency Causes
+  const causesData = useMemo(() => {
+    const counts: Record<string, number> = {};
     pendencias.forEach(p => {
-      if (!p.data_vigencia) return;
-      
-      let date: Date;
-      const val = p.data_vigencia as any;
-      
-      if (val && typeof val === 'object' && 'seconds' in val) {
-        date = new Date(val.seconds * 1000);
-      } else {
-        date = new Date(p.data_vigencia);
-      }
-
-      if (isNaN(date.getTime())) return;
-
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      history[key] = (history[key] || 0) + 1;
+      const items = p.pendencias || [];
+      items.forEach(item => {
+        let name = item.trim();
+        if (name) {
+          // Normaliza para filtro
+          const isUnassignedError = name.toLowerCase().includes("sem responsável") || name.toLowerCase().includes("mapear consultor");
+          const key = isUnassignedError ? "HIDDEN_UNASSIGNED_ERROR" : name;
+          counts[key] = (counts[key] || 0) + 1;
+        }
+      });
     });
-    return Object.entries(history)
-      .sort(([k1], [k2]) => k1.localeCompare(k2))
-      .map(([date, count]) => ({ date, count }));
+    return Object.entries(counts)
+      .filter(([name]) => name !== "HIDDEN_UNASSIGNED_ERROR") // Esconde o erro de falta de dono
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
   }, [pendencias]);
 
   if (pendencias.length === 0) {
@@ -183,19 +186,19 @@ export function SocioCharts({ pendencias }: SocioChartsProps) {
         </CardContent>
       </Card>
 
-      {/* Gráfico 4: Evolução Temporal */}
+      {/* Gráfico 4: Principais Geradores de Pendência */}
       <Card className="shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Evolução por Entregas (Vigências)</CardTitle>
+          <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Top 10 Causas de Pendência</CardTitle>
         </CardHeader>
         <CardContent className="h-[350px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={timeData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-              <XAxis dataKey="date" tick={{fontSize: 12}} axisLine={false} tickLine={false} tickMargin={10} />
-              <YAxis tick={{fontSize: 12}} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{borderRadius: '8px', fontSize: '13px'}} />
-              <Line type="monotone" dataKey="count" name="Casos Reportados" stroke="#3b82f6" strokeWidth={3} dot={{ strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
-            </LineChart>
+            <BarChart data={causesData} layout="vertical" margin={{ left: 50, right: 30, bottom: 5, top: 5 }}>
+              <XAxis type="number" hide />
+              <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px', fontSize: '13px'}} />
+              <Bar dataKey="count" name="Ocorrências" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={15} />
+            </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
