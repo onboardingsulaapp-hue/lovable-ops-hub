@@ -75,6 +75,10 @@ def evaluate(row: dict) -> tuple:
         if actual_value in trigger_values:
             # Regra especial: bloco de Aditivo + "EM TRATATIVA"
             if trigger_field == ADITIVO_TRIGGER_FIELD and aditivo_em_tratativa_flag:
+                # Adicionamos aos "avisos" (em_tratativa) para aparecer o badge âmbar na tabela
+                for req_field in cond.get("then_require", []):
+                    if req_field not in em_tratativa:
+                        em_tratativa.append(req_field)
                 continue
 
             for req_field in cond.get("then_require", []):

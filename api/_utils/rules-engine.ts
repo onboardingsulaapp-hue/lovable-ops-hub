@@ -210,7 +210,11 @@ export function evaluateRules(row: any): {
       // => suprimir todos os itens de aditivo; alerta será criado em processRow
       if (cond.if.field === ADITIVO_TRIGGER_FIELD && aditivoETratativa) {
         console.log(`[Aditivo] "${ADITIVO_FINALIZADO_FIELD}" = EM TRATATIVA — itens de aditivo suprimidos.`);
-        continue; // pula todo o bloco de aditivo
+        // Adicionamos aos "avisos" (emTratativa) para aparecer o badge âmbar na tabela
+        for (const reqField of (cond.then_require as string[])) {
+          if (!emTratativa.includes(reqField)) emTratativa.push(reqField);
+        }
+        continue; // pula o processamento normal de pendências para este bloco
       }
 
       for (const reqField of (cond.then_require as string[])) {
