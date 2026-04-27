@@ -143,7 +143,7 @@ def process_job(job_id: str, job_data: dict):
             qtd_aditivo_sim += 1
             
             f_val_raw = diag["aditivo_finalizado_val"]
-            from modules.rules_engine import normalize_select
+            from modules.utils import normalize_select
             f_val_norm = normalize_select(f_val_raw)
             
             # Contagem para top 10

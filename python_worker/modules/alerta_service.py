@@ -29,7 +29,7 @@ def is_aditivo_em_tratativa(row: dict) -> tuple:
     Returns (is_tratativa, finalizado_val).
     is_tratativa: True if 'Houve pedido de Aditivo'==SIM and 'Adtivo Finalizado ?'==EM TRATATIVA.
     """
-    from modules.rules_engine import normalize_select
+    from modules.utils import normalize_select
     
     trigger_raw = row.get(ADITIVO_TRIGGER_FIELD, "")
     trigger = normalize_select(trigger_raw)

@@ -34,14 +34,7 @@ def passes_gate(row: dict, rules: dict) -> bool:
     return status in allowed_upper
 
 
-def normalize_select(value: str) -> str:
-    """Normalize: remove accents, uppercase, collapse spaces."""
-    if not value:
-        return ""
-    import unicodedata
-    normalized = unicodedata.normalize("NFD", str(value)).encode("ascii", "ignore").decode("ascii")
-    return " ".join(normalized.upper().split())
-
+from modules.utils import normalize_select
 
 def _is_in_progress(value: str, rules: dict) -> bool:
     """Returns True if the value is an in-progress marker (e.g. 'Em Tratativa')."""

@@ -230,17 +230,41 @@ export function evaluateRules(row: any): {
           }
           continue;
         }
-  // 3. Marketing block
-  const marketingFields = rulesJson.marketing.fields as string[];
-  const anyMarketingEmpty = marketingFields.some(f => isEmpty(row[f]));
-  if (anyMarketingEmpty) {
-    const mktName = rulesJson.marketing.pendencia_name_if_any_empty;
-    if (!itens.includes(mktName)) {
-      itens.push(mktName);
+        for (const reqField of (cond.then_require as string[])) {
+          const fieldValue = row[reqField];
+          // Campo genérico "Em Tratativa"
+          if (normalizeSelect(fieldValue) === "EM TRATATIVA") {
+            if (!emTratativa.includes(reqField)) emTratativa.push(reqField);
+            continue;
+          }
+          if (isEmpty(fieldValue) && !itens.includes(reqField)) {
+            itens.push(reqField);
+          }
+        }
+      }
     }
-  }
 
-  return { itens, emTratativa, aditivoEmTratativa: aditivoETratativa };
+    // 3. Marketing block
+    const marketingFields = rulesJson.marketing.fields as string[];
+    const anyMarketingEmpty = marketingFields.some(f => isEmpty(row[f]));
+    if (anyMarketingEmpty) {
+      const mktName = rulesJson.marketing.pendencia_name_if_any_empty;
+      if (!itens.includes(mktName)) {
+        itens.push(mktName);
+      }
+    }
+
+    return { 
+      itens, 
+      emTratativa, 
+      aditivoEmTratativa: aditivoETratativa,
+      aditivoSim,
+      aditivoFinalizadoVal: finalizadoVal
+    };
+  } catch (error) {
+    console.error("[rules-engine] Erro ao avaliar regras:", error);
+    return { itens: [], emTratativa: [], aditivoEmTratativa: false, aditivoSim: false, aditivoFinalizadoVal: "" };
+  }
 }
 
 /**
@@ -301,9 +325,10 @@ export function resolveCollaborator(name: string): { id: string | null, mapped: 
  */
 export async function processRow(row: any, lineNum: number, adminUid: string) {
   const db = getFirestore();
+  const cleanedRow = cleanRow(row);
   
   // Extrair a Vigência para filtrar (Permitir apenas >= 2026 e < hoje)
-  const vigenciaStr = (row["Inicio da Vigência de Contrato"] || "").toString();
+  const vigenciaStr = (cleanedRow["Inicio da Vigência de Contrato"] || "").toString();
   const dataVigencia = parseDate(vigenciaStr);
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0); // Resetar horas para comparar apenas a data
