@@ -131,6 +131,20 @@ export function passesGate(row: any): boolean {
 }
 
 /**
+ * Verifica se um valor está "Em Tratativa" (em andamento) —
+ * campos com esses valores não geram pendência condicional.
+ */
+function isInProgress(value: any): boolean {
+  if (!value) return false;
+  const str = value.toString().trim().toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const progressValues = ((rulesJson as any).in_progress_values as string[] || []).map(
+    (v: string) => v.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  );
+  return progressValues.includes(str);
+}
+
+/**
  * Avalia regras V1 e retorna lista de pendências
  */
 export function evaluateRules(row: any): string[] {
@@ -150,7 +164,10 @@ export function evaluateRules(row: any): string[] {
 
     if (matches) {
       for (const reqField of (cond.then_require as string[])) {
-        if (isEmpty(row[reqField]) && !itens.includes(reqField)) {
+        const fieldValue = row[reqField];
+        // Se o campo estiver "Em Tratativa", não gera pendência
+        if (isInProgress(fieldValue)) continue;
+        if (isEmpty(fieldValue) && !itens.includes(reqField)) {
           itens.push(reqField);
         }
       }

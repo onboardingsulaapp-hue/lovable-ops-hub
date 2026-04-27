@@ -34,6 +34,19 @@ def passes_gate(row: dict, rules: dict) -> bool:
     return status in allowed_upper
 
 
+def _is_in_progress(value: str, rules: dict) -> bool:
+    """Returns True if the value is an in-progress marker (e.g. 'Em Tratativa')."""
+    if not value:
+        return False
+    progress_values = rules.get("in_progress_values", [])
+    # Normalize for comparison: remove accents, uppercase
+    import unicodedata
+    def norm(s):
+        return unicodedata.normalize("NFD", s).encode("ascii", "ignore").decode("ascii").upper().strip()
+    value_norm = norm(value)
+    return any(norm(v) == value_norm for v in progress_values)
+
+
 def evaluate(row: dict) -> List[str]:
     """
     Applies all rules and returns the list of pending item names.
@@ -55,7 +68,11 @@ def evaluate(row: dict) -> List[str]:
 
         if actual_value in trigger_values:
             for req_field in cond.get("then_require", []):
-                if _is_empty(row.get(req_field, "")) and req_field not in itens:
+                field_value = row.get(req_field, "")
+                # Se o campo estiver "Em Tratativa", não gera pendência
+                if _is_in_progress(field_value, rules):
+                    continue
+                if _is_empty(field_value) and req_field not in itens:
                     itens.append(req_field)
 
     # 3. Marketing block: if ANY marketing field is empty → one combined item

@@ -20,6 +20,13 @@ export const RULES_VALIDACAO_V1 = {
         "status_when_pending": "Pendente",
         "isDeleted": false
     },
+    "in_progress_values": [
+        "Em Tratativa",
+        "Em tratativa",
+        "EM TRATATIVA",
+        "Em trativa",
+        "Em Trativa"
+    ],
     "required_fields": [
         "Reunião Realizada",
         "Atuação do Migrasas ?",
