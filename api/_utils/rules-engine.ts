@@ -166,10 +166,16 @@ function normStrict(v: any): string {
 
 /** Verifica se o bloco de aditivo está "Em Tratativa" **/
 function isAditivoEmTratativa(row: any): boolean {
-  const triggerNorm = normStrict(row[ADITIVO_TRIGGER_FIELD]);
+  const triggerRaw = row[ADITIVO_TRIGGER_FIELD];
+  const triggerNorm = normStrict(triggerRaw);
   if (triggerNorm !== "SIM") return false;
-  const finalizadoNorm = normStrict(row[ADITIVO_FINALIZADO_FIELD]);
-  return finalizadoNorm === "EM TRATATIVA";
+
+  const finalizadoRaw = row[ADITIVO_FINALIZADO_FIELD];
+  const finalizadoNorm = normStrict(finalizadoRaw);
+  const result = finalizadoNorm === "EM TRATATIVA";
+  
+  console.log(`[Debug Aditivo] DETECTADO! "${ADITIVO_TRIGGER_FIELD}"=SIM e "${ADITIVO_FINALIZADO_FIELD}"="${finalizadoRaw}" (norm: "${finalizadoNorm}"). Result: ${result}`);
+  return result;
 }
 
 /**
@@ -244,6 +250,7 @@ async function upsertAditivoAlert(
   colaboradorNome: string,
   colaboradorId: string | null
 ) {
+  console.log(`[Alertas] Iniciando upsert de alerta para fingerprint: ${fp}`);
   const alertId = `aditivo_tratativa_${fp}`;
   const alertRef = db.collection("alertas").doc(alertId);
   const snap = await alertRef.get();
@@ -265,11 +272,11 @@ async function upsertAditivoAlert(
 
   if (!snap.exists) {
     await alertRef.set({ ...base, resolved: false, created_at: now });
-    console.log(`[Alertas] Alerta criado: ${alertId}`);
+    console.log(`[Alertas] Alerta CRIADO com sucesso: ${alertId}`);
   } else {
     // Reativar o alerta se ele já existia (garantir que apareça na aba de alertas)
     await alertRef.update({ ...base, resolved: false });
-    console.log(`[Alertas] Alerta atualizado (reativado): {alertId}`);
+    console.log(`[Alertas] Alerta ATUALIZADO (reativado) com sucesso: ${alertId}`);
   }
 }
 

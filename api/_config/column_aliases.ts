@@ -41,5 +41,26 @@ export const COLUMN_ALIASES = {
         "Representante Implantação",
         "Rep. Implantação",
         "Rep Implantação"
+    ],
+    "Houve pedido de Aditivo": [
+        "Houve pedido de Aditivo",
+        "Houve pedido de aditivo",
+        "Houve Pedido de Aditivo"
+    ],
+    "Data do pedido de Aditivo": [
+        "Data do pedido de Aditivo",
+        "Data do pedido de aditivo",
+        "Data Pedido de Aditivo"
+    ],
+    "Data da Assinatura do Aditivo": [
+        "Data da Assinatura do Aditivo",
+        "Data da assinatura do aditivo",
+        "Data Assinatura do Aditivo"
+    ],
+    "Adtivo Finalizado ?": [
+        "Adtivo Finalizado ?",
+        "Aditivo Finalizado ?",
+        "Adtivo Finalizado?",
+        "Aditivo Finalizado?"
     ]
 };

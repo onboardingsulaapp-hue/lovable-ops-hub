@@ -26,11 +26,17 @@ def _norm(value: str) -> str:
 
 def is_aditivo_em_tratativa(row: dict) -> bool:
     """Returns True if 'Houve pedido de Aditivo'==SIM and 'Adtivo Finalizado ?'==EM TRATATIVA."""
-    trigger = _norm(row.get(ADITIVO_TRIGGER_FIELD, ""))
+    trigger_raw = row.get(ADITIVO_TRIGGER_FIELD, "")
+    trigger = _norm(trigger_raw)
     if trigger != "SIM":
+        # print(f"[Debug Aditivo] Trigger '{ADITIVO_TRIGGER_FIELD}' is '{trigger_raw}' (norm: '{trigger}'), skipping.")
         return False
-    finalizado = _norm(row.get(ADITIVO_FINALIZADO_FIELD, ""))
-    return finalizado == "EM TRATATIVA"
+    
+    finalizado_raw = row.get(ADITIVO_FINALIZADO_FIELD, "")
+    finalizado = _norm(finalizado_raw)
+    result = (finalizado == "EM TRATATIVA")
+    print(f"[Debug Aditivo] DETECTADO! '{ADITIVO_TRIGGER_FIELD}'=SIM e '{ADITIVO_FINALIZADO_FIELD}'='{finalizado_raw}' (norm: '{finalizado}'). Result: {result}")
+    return result
 
 
 def upsert_aditivo_alert(db, fingerprint: str, row: dict,
@@ -39,6 +45,7 @@ def upsert_aditivo_alert(db, fingerprint: str, row: dict,
     Idempotent upsert of an 'aditivo_em_tratativa' alert.
     Returns True if created, False if only updated.
     """
+    print(f"[Alertas] Iniciando upsert de alerta para fingerprint: {fingerprint}")
     alert_id = f"aditivo_tratativa_{fingerprint}"
     ref = db.collection("alertas").document(alert_id)
     existing = ref.get()
@@ -59,10 +66,10 @@ def upsert_aditivo_alert(db, fingerprint: str, row: dict,
 
     if not existing.exists:
         ref.set({**base, "resolved": False, "created_at": SERVER_TIMESTAMP})
-        print(f"[Alertas] Alerta criado: {alert_id}")
+        print(f"[Alertas] Alerta CRIADO com sucesso: {alert_id}")
         return True
     else:
         # Reativar o alerta se ele já existia (garantir que apareça na aba de alertas)
         ref.update({**base, "resolved": False})
-        print(f"[Alertas] Alerta atualizado (reativado): {alert_id}")
+        print(f"[Alertas] Alerta ATUALIZADO (reativado) com sucesso: {alert_id}")
         return False
