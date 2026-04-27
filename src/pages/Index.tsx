@@ -22,6 +22,7 @@ import { collection, doc, onSnapshot, query, where, addDoc, updateDoc, setDoc, d
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import logoImg from "@/assets/brand/sulamerica_logo.png";
 import { GenerateReportButton } from "@/components/admin/GenerateReportButton";
+import { AlertasPanel } from "@/components/admin/AlertasPanel";
 
 const emptyFilters: Filters = { colaborador_id: "", status: "", prioridade: "", origem: "", data_inicio: "", data_fim: "", tipo_implantacao: "" };
 
@@ -34,6 +35,17 @@ const Index = () => {
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [adminLogs, setAdminLogs] = useState<AdminLog[]>([]);
+  const [alertCount, setAlertCount] = useState(0);
+
+  // Monitorar Alertas ativos (Realtime)
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    const q = query(collection(db, "alertas"), where("resolved", "==", false));
+    const unsubscribeAlerts = onSnapshot(q, (snapshot) => {
+      setAlertCount(snapshot.size);
+    });
+    return () => unsubscribeAlerts();
+  }, [user]);
 
   // 1. Escutar usuários em tempo real (Apenas Admin)
   useEffect(() => {
@@ -155,6 +167,7 @@ const Index = () => {
             colaborador_id: colabIdVal,
             pendencias: data.itens_pendentes || data.erros || [],
             erros: data.erros || data.itens_pendentes || [],
+            itens_em_tratativa: data.itens_em_tratativa || [],
           } as Pendencia;
         });
         setPendencias(pendsData);
@@ -882,6 +895,16 @@ const Index = () => {
                 Finalizadas
                 <span className="ml-2 bg-muted-foreground/10 text-muted-foreground py-0.5 px-2 rounded-full text-xs">{pendenciasFinalizadas.length}</span>
               </TabsTrigger>
+              {user.role === "admin" && (
+                <TabsTrigger value="alertas" className="data-[state=active]:bg-background data-[state=active]:shadow-sm text-amber-600 data-[state=active]:text-amber-700">
+                  ⚠️ Alertas
+                  {alertCount > 0 && (
+                    <span className="ml-2 bg-amber-100 text-amber-700 py-0.5 px-2 rounded-full text-xs animate-pulse">
+                      {alertCount}
+                    </span>
+                  )}
+                </TabsTrigger>
+              )}
               {/* Removed Sincronizar CSV Tab */}
             </TabsList>
             <TabsContent value="em-andamento" className="m-0 mt-4 border-none p-0 outline-none">
@@ -904,6 +927,11 @@ const Index = () => {
                 colaboradores={colaboradores}
               />
             </TabsContent>
+            {user.role === "admin" && (
+              <TabsContent value="alertas" className="m-0 mt-4 border-none p-0 outline-none animate-in fade-in slide-in-from-bottom-2">
+                <AlertasPanel />
+              </TabsContent>
+            )}
           </Tabs>
         ) : (
           <div className="space-y-12 mt-6">

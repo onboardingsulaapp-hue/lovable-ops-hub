@@ -84,7 +84,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         atualizadas: 0,
         nao_mapeados: [] as string[],
         amostras: [] as string[],
-        erros_processamento: [] as any[]
+        erros_processamento: [] as any[],
+        // Diagnóstico de Aditivo Em Tratativa
+        qtd_alertas_aditivo_tratativa: 0,
+        qtd_pendencias_aditivo_suprimidas: 0,
+        exemplos_alertas_aditivo_tratativa: [] as { razao_social: string; fingerprint?: string }[]
     };
 
     for (const rawRow of records) {
@@ -108,6 +112,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (result.amostras.length < 10) result.amostras.push(`[ATUALIZADA] ${row['Razão Social do Cliente']}`);
           } else if (resRow.action === 'sem_mudanca' || resRow.action === 'no_pendency') {
             result.linhas_gate++;
+          }
+          // Contabilizar alertas de aditivo (independente da ação principal)
+          if ((resRow as any).aditivoEmTratativa) {
+            result.qtd_pendencias_aditivo_suprimidas++;
+            // qtd_alertas crescerá apenas quando a action é criada ou editada (upsert real no alerta)
+            result.qtd_alertas_aditivo_tratativa++;
+            if (result.exemplos_alertas_aditivo_tratativa.length < 5) {
+              result.exemplos_alertas_aditivo_tratativa.push({
+                razao_social: row['Razão Social do Cliente'] || 'N/A',
+                fingerprint: (resRow as any).fp
+              });
+            }
           }
         } catch (err: any) {
           console.error(`Error processing line ${result.linhas_total}:`, err);

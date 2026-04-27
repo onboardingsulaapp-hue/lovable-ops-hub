@@ -144,11 +144,48 @@ function isInProgress(value: any): boolean {
   return progressValues.includes(str);
 }
 
+// ============================================================
+// CONSTANTES DE ADITIVO
+// Campos que definem a regra especial de "Aditivo Em Tratativa"
+// ============================================================
+const ADITIVO_TRIGGER_FIELD = "Houve pedido de Aditivo";
+const ADITIVO_FINALIZADO_FIELD = "Adtivo Finalizado ?";
+const ADITIVO_PENDENCY_FIELDS = [
+  "Data do pedido de Aditivo",
+  "Data da Assinatura do Aditivo",
+  "Adtivo Finalizado ?",
+];
+
+/** Normaliza um valor para comparacao sem acentos/caixa **/
+function normStrict(v: any): string {
+  if (!v) return "";
+  return v.toString().trim().toUpperCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+/** Verifica se o bloco de aditivo está "Em Tratativa" **/
+function isAditivoEmTratativa(row: any): boolean {
+  const triggerNorm = normStrict(row[ADITIVO_TRIGGER_FIELD]);
+  if (triggerNorm !== "SIM") return false;
+  const finalizadoNorm = normStrict(row[ADITIVO_FINALIZADO_FIELD]);
+  return finalizadoNorm === "EM TRATATIVA";
+}
+
 /**
- * Avalia regras V1 e retorna lista de pendências
+ * Avalia regras V1 e retorna:
+ * - itens: campos com pendência real
+ * - emTratativa: campos genéricos em andamento
+ * - aditivoEmTratativa: flag específica — bloco de aditivo está em tratativa
  */
-export function evaluateRules(row: any): string[] {
+export function evaluateRules(row: any): {
+  itens: string[];
+  emTratativa: string[];
+  aditivoEmTratativa: boolean;
+} {
   const itens: string[] = [];
+  const emTratativa: string[] = [];
+  const aditivoETratativa = isAditivoEmTratativa(row);
 
   // 1. Required fields
   for (const field of (rulesJson.required_fields as string[])) {
@@ -163,10 +200,20 @@ export function evaluateRules(row: any): string[] {
     const matches = (cond.if.equals_any as string[]).some(v => v.toUpperCase() === triggerValue);
 
     if (matches) {
+      // Regra especial: bloco de Aditivo + "EM TRATATIVA"
+      // => suprimir todos os itens de aditivo; alerta será criado em processRow
+      if (cond.if.field === ADITIVO_TRIGGER_FIELD && aditivoETratativa) {
+        console.log(`[Aditivo] "${ADITIVO_FINALIZADO_FIELD}" = EM TRATATIVA — itens de aditivo suprimidos.`);
+        continue; // pula todo o bloco de aditivo
+      }
+
       for (const reqField of (cond.then_require as string[])) {
         const fieldValue = row[reqField];
-        // Se o campo estiver "Em Tratativa", não gera pendência
-        if (isInProgress(fieldValue)) continue;
+        // Campo genérico "Em Tratativa" — aviso, não pendência
+        if (isInProgress(fieldValue)) {
+          if (!emTratativa.includes(reqField)) emTratativa.push(reqField);
+          continue;
+        }
         if (isEmpty(fieldValue) && !itens.includes(reqField)) {
           itens.push(reqField);
         }
@@ -184,7 +231,46 @@ export function evaluateRules(row: any): string[] {
     }
   }
 
-  return itens;
+  return { itens, emTratativa, aditivoEmTratativa: aditivoETratativa };
+}
+
+/**
+ * Upsert idempotente de um alerta de "Aditivo Em Tratativa" na collection alertas
+ */
+async function upsertAditivoAlert(
+  db: FirebaseFirestore.Firestore,
+  fp: string,
+  row: any,
+  colaboradorNome: string,
+  colaboradorId: string | null
+) {
+  const alertId = `aditivo_tratativa_${fp}`;
+  const alertRef = db.collection("alertas").doc(alertId);
+  const snap = await alertRef.get();
+  const now = FieldValue.serverTimestamp();
+
+  const base = {
+    tipo: "aditivo_em_tratativa",
+    fingerprint: fp,
+    razao_social: row["Raãão Social do Cliente"] || row["Razão Social do Cliente"] || "N/A",
+    produto: row["Produto"] || "N/A",
+    data_vigencia: row["Inicio da Vigência de Contrato"] || "N/A",
+    colaborador_nome: colaboradorNome,
+    colaborador_id: colaboradorId,
+    status_empresa: row["Status da Empresa"] || "N/A",
+    aditivo_status: "EM TRATATIVA",
+    mensagem: "Aditivo em tratativa — pendências de aditivo suprimidas.",
+    updated_at: now,
+  };
+
+  if (!snap.exists) {
+    await alertRef.set({ ...base, resolved: false, created_at: now });
+    console.log(`[Alertas] Alerta criado: ${alertId}`);
+  } else {
+    // Nunca sobrescreve resolved; apenas atualiza metadados
+    await alertRef.update({ ...base });
+    console.log(`[Alertas] Alerta atualizado: ${alertId}`);
+  }
 }
 
 /**
@@ -242,35 +328,49 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   if (!passesGate(row)) return { action: 'ignored_by_gate' };
 
   // Rules
-  const itens = evaluateRules(row);
-  
+  const { itens, emTratativa, aditivoEmTratativa } = evaluateRules(row);
+
   // Resolve Collab (Mudança para CONSULTOR DE ONBOARDING)
   const representante = row["CONSULTOR DE ONBOARDING"] || "";
   const { id: collabId, mapped } = resolveCollaborator(representante);
-  
+
   if (!mapped && itens.length > 0) {
     itens.push("Sem responsável (mapear consultor onboarding)");
   }
 
-  // Se nada pendente, ignorar
-  if (itens.length === 0) {
-    return { action: 'no_pendency' };
+  // Fingerprint (necessário antes do alerta e do upsert)
+  const fp = generateFingerprint(row);
+
+  // ── ALERTA: Aditivo Em Tratativa ──────────────────────────
+  if (aditivoEmTratativa) {
+    await upsertAditivoAlert(db, fp, row, representante, collabId).catch(e => {
+      console.error(`[Alertas] Falha ao gravar alerta de aditivo para ${fp}:`, e.message);
+    });
   }
 
-  // Fingerprint
-  const fp = generateFingerprint(row);
+  // Se nada pendente (após suprimir itens de aditivo), ignorar
+  if (itens.length === 0) {
+    // Se só havia itens de aditivo (agora Em Tratativa), encerrar sem pendência
+    return { action: 'no_pendency', aditivoEmTratativa };
+  }
+
   const docRef = db.collection('pendencias').doc(fp);
-  
+
   console.log(`[Firestore] Verificando documento: pendencias/${fp}`);
   const docSnap = await docRef.get().catch(e => {
     console.error(`[Firestore] Falha ao ler documento ${fp}:`, e.message);
     throw e;
   });
-  
+
   const before = docSnap.exists ? docSnap.data() : null;
 
-  const texto = `Pendências identificadas: ${itens.join(', ')}. Favor regularizar e atualizar.`;
-  
+  // Remover itens de aditivo antigos (caso o doc já existia com eles e agora é Em Tratativa)
+  const itensFinais = aditivoEmTratativa
+    ? itens.filter(i => !ADITIVO_PENDENCY_FIELDS.includes(i))
+    : itens;
+
+  const texto = `Pendências identificadas: ${itensFinais.join(', ')}. Favor regularizar e atualizar.`;
+
   const payload: any = {
     fingerprint: fp,
     razao_social: row["Razão Social do Cliente"] || "N/A",
@@ -280,8 +380,9 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     prioridade: "Média",
     origem: "Automático",
     isDeleted: false,
-    itens_pendentes: itens,
-    pendencias: itens, // Alias para frontend
+    itens_pendentes: itensFinais,
+    pendencias: itensFinais, // Alias para frontend
+    itens_em_tratativa: emTratativa, // Campos em andamento — geram aviso, não pendência
     texto_pendencia: texto,
     colaborador_id: collabId,
     colaborador_nome: representante,
@@ -304,8 +405,8 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   } else {
     // Verificar se houve mudança nos itens
     const oldItens = before?.itens_pendentes || [];
-    const hasChanged = JSON.stringify(oldItens.sort()) !== JSON.stringify(itens.sort());
-    
+    const hasChanged = JSON.stringify([...oldItens].sort()) !== JSON.stringify([...itensFinais].sort());
+
     if (hasChanged) {
       console.log(`[Firestore] Atualizando documento (mudança detectada): ${fp}`);
       await docRef.update(payload).catch(e => {
@@ -315,14 +416,14 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
       action = 'editada';
     } else {
       console.log(`[Firestore] Documento sem mudanças de itens, atualizando metadados: ${fp}`);
-      await docRef.update({ 
+      await docRef.update({
         atualizado_em: FieldValue.serverTimestamp(),
-        linha_planilha: lineNum 
+        linha_planilha: lineNum
       }).catch(e => {
         console.error(`[Firestore] Falha ao atualizar metadados ${fp}:`, e.message);
         throw e;
       });
-      return { action: 'sem_mudanca', fp };
+      return { action: 'sem_mudanca', fp, aditivoEmTratativa };
     }
   }
 
@@ -339,11 +440,9 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     depois: payload
   }).catch(e => {
     console.error(`[Firestore] Falha ao registrar histórico para ${fp}:`, e.message);
-    // Não lançamos erro aqui para não invalidar a criação do doc principal, 
-    // mas logamos o erro crítico.
   });
 
-  return { action, fp };
+  return { action, fp, aditivoEmTratativa };
 }
 
 /**

@@ -47,12 +47,15 @@ def _is_in_progress(value: str, rules: dict) -> bool:
     return any(norm(v) == value_norm for v in progress_values)
 
 
-def evaluate(row: dict) -> List[str]:
+def evaluate(row: dict) -> tuple:
     """
-    Applies all rules and returns the list of pending item names.
+    Applies all rules and returns (itens_pendentes, itens_em_tratativa).
+    - itens_pendentes: list of field names with real pendencies
+    - itens_em_tratativa: list of field names that are in-progress (warning, not pendency)
     """
     rules = _load_rules()
     itens: List[str] = []
+    em_tratativa: List[str] = []
 
     # 1. Required fields
     for field in rules.get("required_fields", []):
@@ -60,6 +63,9 @@ def evaluate(row: dict) -> List[str]:
             itens.append(field)
 
     # 2. Conditional required fields
+    from modules.alerta_service import is_aditivo_em_tratativa, ADITIVO_TRIGGER_FIELD
+    aditivo_em_tratativa_flag = is_aditivo_em_tratativa(row)
+
     for cond in rules.get("conditional_required", []):
         if_block = cond.get("if", {})
         trigger_field = if_block.get("field", "")
@@ -67,10 +73,16 @@ def evaluate(row: dict) -> List[str]:
         actual_value = row.get(trigger_field, "").strip().upper()
 
         if actual_value in trigger_values:
+            # Regra especial: bloco de Aditivo + "EM TRATATIVA"
+            if trigger_field == ADITIVO_TRIGGER_FIELD and aditivo_em_tratativa_flag:
+                continue
+
             for req_field in cond.get("then_require", []):
                 field_value = row.get(req_field, "")
-                # Se o campo estiver "Em Tratativa", não gera pendência
+                # Se o campo estiver "Em Tratativa", registra como aviso (não pendência)
                 if _is_in_progress(field_value, rules):
+                    if req_field not in em_tratativa:
+                        em_tratativa.append(req_field)
                     continue
                 if _is_empty(field_value) and req_field not in itens:
                     itens.append(req_field)
@@ -83,7 +95,7 @@ def evaluate(row: dict) -> List[str]:
         if pending_name not in itens:
             itens.append(pending_name)
 
-    return itens
+    return itens, em_tratativa
 
 
 def parse_date(date_str: str) -> datetime | None:

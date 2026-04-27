@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Check, RotateCcw, MessageSquare, ChevronDown, ChevronUp, Building2, FileSpreadsheet, Fingerprint, Edit2, MoreHorizontal } from "lucide-react";
+import { Check, RotateCcw, MessageSquare, ChevronDown, ChevronUp, Building2, FileSpreadsheet, Fingerprint, Edit2, MoreHorizontal, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { ReabrirPendenciaDialog } from "./ReabrirPendenciaDialog";
 import { EditPendenciaDialog } from "./EditPendenciaDialog";
@@ -154,7 +154,20 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                         return p.data_vigencia || "—";
                       })()}
                     </TableCell>
-                    <TableCell><StatusBadge status={p.status} /></TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <StatusBadge status={p.status} />
+                        {p.itens_em_tratativa && p.itens_em_tratativa.length > 0 && (
+                          <span
+                            title={`Em Tratativa: ${p.itens_em_tratativa.join(", ")}`}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 cursor-help"
+                          >
+                            <AlertTriangle className="h-2.5 w-2.5" />
+                            Em Tratativa
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {userRole === "admin" ? (
                         <Select value={p.prioridade} onValueChange={(v) => handleAlterarPrioridade(p.id, v as Prioridade)}>
@@ -248,6 +261,29 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                               </div>
                               <span className="text-brand-blue text-xs font-mono break-all opacity-80">{p.fingerprint}</span>
                             </div>
+
+                            {/* Itens Em Tratativa */}
+                            {p.itens_em_tratativa && p.itens_em_tratativa.length > 0 && (
+                              <div className="bg-amber-50 border-l-[3px] border-amber-400 p-4 rounded-r-[8px]">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                                  <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">
+                                    Itens Em Tratativa — Aguardando Liberação
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {p.itens_em_tratativa.map((item, i) => (
+                                    <Badge
+                                      key={i}
+                                      variant="outline"
+                                      className="text-[11px] font-semibold border-amber-300 bg-amber-50 text-amber-800 rounded-[6px] px-2 py-1"
+                                    >
+                                      {item}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
 
                             {/* Erros */}
                             {p.erros && p.erros.length > 0 && (

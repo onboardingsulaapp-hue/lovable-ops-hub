@@ -9,7 +9,7 @@ from typing import List, Tuple
 
 
 def upsert(db, fingerprint: str, itens_pendentes: List[str],
-           colaborador_id, row: dict) -> Tuple[str, dict | None]:
+           em_tratativa: List[str], colaborador_id, row: dict) -> Tuple[str, dict | None]:
     """
     Creates or updates a pendencia document.
     Returns (action, before_snapshot) where action is "criada", "atualizada" or "sem_mudanca".
@@ -19,6 +19,8 @@ def upsert(db, fingerprint: str, itens_pendentes: List[str],
     before = existing.to_dict() if existing.exists else None
 
     texto = f"Pendências identificadas: {', '.join(itens_pendentes)}. Favor regularizar e atualizar."
+    if em_tratativa:
+        texto += f" Em tratativa: {', '.join(em_tratativa)}."
 
     new_data = {
         "fingerprint": fingerprint,
@@ -31,6 +33,7 @@ def upsert(db, fingerprint: str, itens_pendentes: List[str],
         "isDeleted": False,
         "itens_pendentes": itens_pendentes,
         "pendencias": itens_pendentes,  # alias used by frontend
+        "itens_em_tratativa": em_tratativa,  # campos em andamento — aviso, não pendência
         "texto_pendencia": texto,
         "colaborador_id": colaborador_id,
         "representante_nome": row.get("Representante da Implantação", ""),
@@ -43,10 +46,12 @@ def upsert(db, fingerprint: str, itens_pendentes: List[str],
         ref.set(new_data)
         return "criada", None
     else:
-        # Only update if itens_pendentes changed
+        # Only update if itens_pendentes OR em_tratativa changed
         old_itens = set(before.get("itens_pendentes", []) or before.get("pendencias", []))
         new_itens = set(itens_pendentes)
-        if old_itens == new_itens:
+        old_tratativa = set(before.get("itens_em_tratativa", []))
+        new_tratativa = set(em_tratativa)
+        if old_itens == new_itens and old_tratativa == new_tratativa:
             return "sem_mudanca", before
         ref.set(new_data, merge=True)
         return "atualizada", before

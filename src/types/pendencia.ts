@@ -43,6 +43,7 @@ export interface Pendencia {
   tipo_implantacao: TipoImplantacao;
   fingerprint: string;
   erros: string[];
+  itens_em_tratativa?: string[]; // Campos condicionais "Em Tratativa" — aviso, não pendência
   isDeleted?: boolean; // Podemos usar Ignorada em vez disso
 }
 

@@ -33,6 +33,11 @@ from modules.fingerprint import generate as make_fingerprint
 from modules.collaborator_resolver import resolve as resolve_collaborator
 from modules.pendencias_service import upsert as upsert_pendencia
 from modules.historico_service import record as record_historico
+from modules.alerta_service import (
+    is_aditivo_em_tratativa,
+    upsert_aditivo_alert,
+    ADITIVO_PENDENCY_FIELDS,
+)
 
 # -------------------------------------------------------
 # Firebase initialization
@@ -95,6 +100,10 @@ def process_job(job_id: str, job_data: dict):
     atualizadas = 0
     nao_mapeados: list[str] = []
     amostras: list[str] = []
+    # Aditivo Em Tratativa
+    qtd_alertas_aditivo_tratativa = 0
+    qtd_pendencias_aditivo_suprimidas = 0
+    exemplos_alertas_aditivo: list[dict] = []
 
     for row in rows:
         from modules.rules_engine import _load_rules
@@ -114,26 +123,46 @@ def process_job(job_id: str, job_data: dict):
 
         linhas_gate += 1
 
+        # Detectar caso especial: Aditivo Em Tratativa
+        aditivo_tratativa = is_aditivo_em_tratativa(row)
+
         # Apply validation rules
-        itens_pendentes = evaluate(row)
-        if not itens_pendentes:
-            linhas_sem_pendencia += 1
-            continue
+        itens_pendentes, em_tratativa = evaluate(row)
 
         # Resolve collaborator
         representante = row.get("Representante da Implantação", "")
         uid, is_mapped = resolve_collaborator(representante)
+
+        # Se Aditivo Em Tratativa: criar alerta e remover itens de aditivo
+        fp = make_fingerprint(row)
+        if aditivo_tratativa:
+            try:
+                created = upsert_aditivo_alert(db, fp, row, representante, uid)
+                qtd_pendencias_aditivo_suprimidas += 1
+                qtd_alertas_aditivo_tratativa += 1
+                if len(exemplos_alertas_aditivo) < 5:
+                    exemplos_alertas_aditivo.append({
+                        "razao_social": row.get("Razão Social do Cliente", "N/A"),
+                        "fingerprint": fp,
+                        "novo": created
+                    })
+            except Exception as e:
+                print(f"[Worker] Erro ao criar alerta de aditivo: {e}")
+
+            # Remover itens de aditivo da lista (suprimidos)
+            itens_pendentes = [i for i in itens_pendentes if i not in ADITIVO_PENDENCY_FIELDS]
+
+        if not itens_pendentes and not em_tratativa:
+            linhas_sem_pendencia += 1
+            continue
 
         if not is_mapped and len(itens_pendentes) > 0:
             itens_pendentes.append("Sem responsável (mapear representante)")
             if representante not in nao_mapeados:
                 nao_mapeados.append(representante)
 
-        # Generate fingerprint (stable doc ID)
-        fp = make_fingerprint(row)
-
         # Upsert pendencia
-        action, before = upsert_pendencia(db, fp, itens_pendentes, uid, row)
+        action, before = upsert_pendencia(db, fp, itens_pendentes, em_tratativa, uid, row)
 
         if action == "criada":
             criadas += 1
@@ -156,6 +185,9 @@ def process_job(job_id: str, job_data: dict):
         "atualizadas": atualizadas,
         "nao_mapeados": nao_mapeados,
         "amostras": amostras,
+        "qtd_alertas_aditivo_tratativa": qtd_alertas_aditivo_tratativa,
+        "qtd_pendencias_aditivo_suprimidas": qtd_pendencias_aditivo_suprimidas,
+        "exemplos_alertas_aditivo_tratativa": exemplos_alertas_aditivo,
     }
 
     print(f"\n[Worker] Job {job_id} completed:")
