@@ -260,8 +260,8 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     produto: row["Produto"] || "N/A",
     data_vigencia: row["Inicio da Vigência de Contrato"] || "N/A",
     status: "Pendente",
-    prioridade: "Media",
-    origem: "Automatica",
+    prioridade: "Média",
+    origem: "Automático",
     isDeleted: false,
     itens_pendentes: itens,
     pendencias: itens, // Alias para frontend
@@ -271,7 +271,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     atualizado_em: FieldValue.serverTimestamp(),
     linha_planilha: lineNum,
     linha_csv: row,
-    tipo_implantacao: row["Produto"] || "Saúde" // Fallback seguro
+    tipo_implantacao: (row["Produto"] || "").toString().toUpperCase().includes("ODONTO") ? "Odonto" : "Saúde"
   };
 
   let action: 'criada' | 'editada' | 'sem_mudanca' = 'sem_mudanca';

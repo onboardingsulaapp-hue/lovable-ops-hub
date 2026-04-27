@@ -15,8 +15,8 @@ export const RULES_VALIDACAO_V1 = {
         ]
     },
     "defaults": {
-        "prioridade": "Media",
-        "origem": "Automatica",
+        "prioridade": "Média",
+        "origem": "Automático",
         "status_when_pending": "Pendente",
         "isDeleted": false
     },

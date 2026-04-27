@@ -36,7 +36,7 @@ const Index = () => {
 
   // 1. Escutar usuários em tempo real (Apenas Admin)
   useEffect(() => {
-    if (!user || user.role !== "admin") return;
+    if (!user || (user.role !== "admin" && user.role !== "socio")) return;
 
     // Escutamos apenas se for admin, pois as Rules bloqueiam listagem de usuarios para não admins
     const unsubscribeUsers = onSnapshot(
@@ -135,7 +135,7 @@ const Index = () => {
 
           // Compatibilidade In-memory (Fallback preventivo)
           const statusVal = data.status || "Pendente";
-          const prioriVal = data.prioridade || "Media";
+          const prioriVal = data.prioridade || "Média";
           const origemVal = data.origem || "Manual";
           const colabIdVal = data.colaborador_id || "sem_responsavel";
           const delVal = data.isDeleted === undefined ? false : data.isDeleted;
@@ -167,21 +167,50 @@ const Index = () => {
 
   const colaboradores = useMemo(() => {
     const map = new Map<string, { id: string; nome: string }>();
-    users.filter(u => u.role === "colaborador" && u.status === "ativo").forEach(u => {
+    // Incluir todos os colaboradores (ativos ou pré-cadastrados)
+    allUsers.filter(u => u.role === "colaborador").forEach(u => {
+      // Usamos u.id (que pode ser email ou UID) para garantir que possamos filtrar
       map.set(u.id, { id: u.id, nome: u.nome });
     });
     return Array.from(map.values());
-  }, [users]);
+  }, [allUsers]);
 
   const activePendencias = useMemo(() => pendencias.filter(p => !p.isDeleted), [pendencias]);
 
   const filteredPendencias = useMemo(() => {
     let result = activePendencias;
-    if (filters.colaborador_id) result = result.filter((p) => p.colaborador_id === filters.colaborador_id);
+    if (filters.colaborador_id) {
+      const selectedUser = allUsers.find(u => u.id === filters.colaborador_id);
+      result = result.filter((p) => 
+        p.colaborador_id === filters.colaborador_id || 
+        (selectedUser && p.colaborador_nome === selectedUser.nome) ||
+        p.colaborador_nome === filters.colaborador_id
+      );
+    }
     if (filters.status) result = result.filter((p) => p.status === filters.status);
-    if (filters.prioridade) result = result.filter((p) => p.prioridade === filters.prioridade);
-    if (filters.origem) result = result.filter((p) => p.origem === filters.origem);
-    if (filters.tipo_implantacao) result = result.filter((p) => p.tipo_implantacao === filters.tipo_implantacao);
+    
+    // Filtros com normalização para evitar problemas de acento/case
+    if (filters.prioridade) {
+      result = result.filter((p) => {
+        const p1 = (p.prioridade || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const f1 = (filters.prioridade).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        return p1 === f1;
+      });
+    }
+    if (filters.origem) {
+      result = result.filter((p) => {
+        const p1 = (p.origem || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const f1 = (filters.origem).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        return p1 === f1;
+      });
+    }
+    if (filters.tipo_implantacao) {
+      result = result.filter((p) => {
+        const pNorm = (p.tipo_implantacao || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const fNorm = filters.tipo_implantacao.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        return pNorm.includes(fNorm);
+      });
+    }
     if (filters.data_inicio || filters.data_fim) {
       result = result.filter((p) => {
         if (!p.data_vigencia) return false;
