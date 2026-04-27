@@ -252,7 +252,7 @@ async function upsertAditivoAlert(
   const base = {
     tipo: "aditivo_em_tratativa",
     fingerprint: fp,
-    razao_social: row["Raãão Social do Cliente"] || row["Razão Social do Cliente"] || "N/A",
+    razao_social: row["Razão Social do Cliente"] || "N/A",
     produto: row["Produto"] || "N/A",
     data_vigencia: row["Inicio da Vigência de Contrato"] || "N/A",
     colaborador_nome: colaboradorNome,
@@ -267,9 +267,9 @@ async function upsertAditivoAlert(
     await alertRef.set({ ...base, resolved: false, created_at: now });
     console.log(`[Alertas] Alerta criado: ${alertId}`);
   } else {
-    // Nunca sobrescreve resolved; apenas atualiza metadados
-    await alertRef.update({ ...base });
-    console.log(`[Alertas] Alerta atualizado: ${alertId}`);
+    // Reativar o alerta se ele já existia (garantir que apareça na aba de alertas)
+    await alertRef.update({ ...base, resolved: false });
+    console.log(`[Alertas] Alerta atualizado (reativado): {alertId}`);
   }
 }
 

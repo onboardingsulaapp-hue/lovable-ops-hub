@@ -62,7 +62,7 @@ def upsert_aditivo_alert(db, fingerprint: str, row: dict,
         print(f"[Alertas] Alerta criado: {alert_id}")
         return True
     else:
-        # Nunca sobrescreve 'resolved' — apenas atualiza metadados
-        ref.update(base)
-        print(f"[Alertas] Alerta atualizado: {alert_id}")
+        # Reativar o alerta se ele já existia (garantir que apareça na aba de alertas)
+        ref.update({**base, "resolved": False})
+        print(f"[Alertas] Alerta atualizado (reativado): {alert_id}")
         return False

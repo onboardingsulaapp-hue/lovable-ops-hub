@@ -130,7 +130,7 @@ def process_job(job_id: str, job_data: dict):
         itens_pendentes, em_tratativa = evaluate(row)
 
         # Resolve collaborator
-        representante = row.get("Representante da Implantação", "")
+        representante = row.get("CONSULTOR DE ONBOARDING", "")
         uid, is_mapped = resolve_collaborator(representante)
 
         # Se Aditivo Em Tratativa: criar alerta e remover itens de aditivo

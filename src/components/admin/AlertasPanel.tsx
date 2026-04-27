@@ -13,10 +13,11 @@ export function AlertasPanel() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Removemos orderBy do query para evitar exigência de índice composto no Firestore
+    // Ordenaremos em memória para garantir que funcione sem configuração manual de índices
     const q = query(
       collection(db, "alertas"),
-      where("resolved", "==", false),
-      orderBy("updated_at", "desc")
+      where("resolved", "==", false)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -24,7 +25,15 @@ export function AlertasPanel() {
         id: d.id,
         ...d.data(),
       })) as Alerta[];
-      setAlertas(docs);
+      
+      // Ordenar por updated_at descendente em memória
+      const sorted = docs.sort((a, b) => {
+        const timeA = a.updated_at?.seconds || 0;
+        const timeB = b.updated_at?.seconds || 0;
+        return timeB - timeA;
+      });
+
+      setAlertas(sorted);
       setLoading(false);
     }, (error) => {
       console.error("Erro ao buscar alertas:", error);
