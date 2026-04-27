@@ -86,10 +86,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         amostras: [] as string[],
         erros_processamento: [] as any[],
         // Diagnóstico de Aditivo Em Tratativa
+        qtd_aditivo_sim: 0,
+        qtd_aditivo_em_tratativa: 0,
         qtd_alertas_aditivo_tratativa: 0,
-        qtd_pendencias_aditivo_suprimidas: 0,
-        exemplos_alertas_aditivo_tratativa: [] as { razao_social: string; fingerprint?: string }[]
+        valores_unicos_aditivo_finalizado: {} as Record<string, number>,
+        exemplos_em_tratativa: [] as any[],
+        exemplos_aditivo_sim_sem_finalizado: [] as any[],
+        error_columns_missing: [] as string[]
     };
+
+    // Verificar colunas obrigatórias para aditivo
+    const requiredAditivo = ["Houve pedido de Aditivo", "Adtivo Finalizado ?"];
+    if (records.length > 0) {
+      const sample = records[0];
+      for (const col of requiredAditivo) {
+        if (!(col in sample)) result.error_columns_missing.push(col);
+      }
+    }
 
     for (const rawRow of records) {
         result.linhas_total++;
@@ -114,14 +127,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             result.linhas_gate++;
           }
           // Contabilizar alertas de aditivo (independente da ação principal)
-          if ((resRow as any).aditivoEmTratativa) {
-            result.qtd_pendencias_aditivo_suprimidas++;
-            // qtd_alertas crescerá apenas quando a action é criada ou editada (upsert real no alerta)
-            result.qtd_alertas_aditivo_tratativa++;
-            if (result.exemplos_alertas_aditivo_tratativa.length < 5) {
-              result.exemplos_alertas_aditivo_tratativa.push({
+          const res = resRow as any;
+          if (res.aditivoSim) {
+            result.qtd_aditivo_sim++;
+            const fValRaw = res.aditivoFinalizadoVal || "";
+            const fValNorm = fValRaw.trim().toUpperCase() || "(VAZIO)";
+            result.valores_unicos_aditivo_finalizado[fValNorm] = (result.valores_unicos_aditivo_finalizado[fValNorm] || 0) + 1;
+            
+            if (!fValRaw && result.exemplos_aditivo_sim_sem_finalizado.length < 5) {
+              result.exemplos_aditivo_sim_sem_finalizado.push({
                 razao_social: row['Razão Social do Cliente'] || 'N/A',
-                fingerprint: (resRow as any).fp
+                valor_cru: fValRaw
+              });
+            }
+          }
+
+          if (res.aditivoEmTratativa) {
+            result.qtd_aditivo_em_tratativa++;
+            result.qtd_alertas_aditivo_tratativa++; // Contabiliza cada vez que a regra é ativada
+            
+            if (result.exemplos_em_tratativa.length < 5) {
+              result.exemplos_em_tratativa.push({
+                razao_social: row['Razão Social do Cliente'] || 'N/A',
+                valor_cru: res.aditivoFinalizadoVal,
+                valor_normalizado: "EM TRATATIVA"
               });
             }
           }
@@ -139,6 +168,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     result.linhas_com_pendencia = result.criadas + result.atualizadas;
 
     // 6. Sucesso
+    // Converter valores_unicos para array top 10
+    const top10 = Object.entries(result.valores_unicos_aditivo_finalizado)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
+    
+    (result as any).valores_unicos_aditivo_finalizado = top10;
+
     await jobDoc.ref.update({
       status: result.erros_processamento.length > 0 && result.linhas_gate === 0 ? 'failed' : 'success',
       result,

@@ -34,28 +34,38 @@ def passes_gate(row: dict, rules: dict) -> bool:
     return status in allowed_upper
 
 
+def normalize_select(value: str) -> str:
+    """Normalize: remove accents, uppercase, collapse spaces."""
+    if not value:
+        return ""
+    import unicodedata
+    normalized = unicodedata.normalize("NFD", str(value)).encode("ascii", "ignore").decode("ascii")
+    return " ".join(normalized.upper().split())
+
+
 def _is_in_progress(value: str, rules: dict) -> bool:
     """Returns True if the value is an in-progress marker (e.g. 'Em Tratativa')."""
     if not value:
         return False
     progress_values = rules.get("in_progress_values", [])
-    # Normalize for comparison: remove accents, uppercase
-    import unicodedata
-    def norm(s):
-        return unicodedata.normalize("NFD", s).encode("ascii", "ignore").decode("ascii").upper().strip()
-    value_norm = norm(value)
-    return any(norm(v) == value_norm for v in progress_values)
+    value_norm = normalize_select(value)
+    return any(normalize_select(v) == value_norm for v in progress_values)
 
 
 def evaluate(row: dict) -> tuple:
     """
-    Applies all rules and returns (itens_pendentes, itens_em_tratativa).
+    Applies all rules and returns (itens_pendentes, itens_em_tratativa, diag_flags).
     - itens_pendentes: list of field names with real pendencies
     - itens_em_tratativa: list of field names that are in-progress (warning, not pendency)
+    - diag_flags: dict with aditivo-specific diagnostics
     """
     rules = _load_rules()
     itens: List[str] = []
     em_tratativa: List[str] = []
+    
+    # Constantes de campo exatas
+    ADITIVO_TRIGGER_FIELD = "Houve pedido de Aditivo"
+    ADITIVO_FINALIZADO_FIELD = "Adtivo Finalizado ?"
 
     # 1. Required fields
     for field in rules.get("required_fields", []):
@@ -63,19 +73,20 @@ def evaluate(row: dict) -> tuple:
             itens.append(field)
 
     # 2. Conditional required fields
-    from modules.alerta_service import is_aditivo_em_tratativa, ADITIVO_TRIGGER_FIELD
-    aditivo_em_tratativa_flag = is_aditivo_em_tratativa(row)
+    from modules.alerta_service import is_aditivo_em_tratativa
+    aditivo_em_tratativa_flag, aditivo_finalizado_val = is_aditivo_em_tratativa(row)
+    trigger_norm = normalize_select(row.get(ADITIVO_TRIGGER_FIELD, ""))
 
     for cond in rules.get("conditional_required", []):
         if_block = cond.get("if", {})
         trigger_field = if_block.get("field", "")
-        trigger_values = [v.upper() for v in if_block.get("equals_any", [])]
-        actual_value = row.get(trigger_field, "").strip().upper()
+        trigger_values = [normalize_select(v) for v in if_block.get("equals_any", [])]
+        actual_value = normalize_select(row.get(trigger_field, ""))
 
         if actual_value in trigger_values:
             # Regra especial: bloco de Aditivo + "EM TRATATIVA"
             if trigger_field == ADITIVO_TRIGGER_FIELD and aditivo_em_tratativa_flag:
-                # Adicionamos aos "avisos" (em_tratativa) para aparecer o badge âmbar na tabela
+                # Adicionamos aos "avisos" para visibilidade
                 for req_field in cond.get("then_require", []):
                     if req_field not in em_tratativa:
                         em_tratativa.append(req_field)
@@ -83,15 +94,15 @@ def evaluate(row: dict) -> tuple:
 
             for req_field in cond.get("then_require", []):
                 field_value = row.get(req_field, "")
-                # Se o campo estiver "Em Tratativa", registra como aviso (não pendência)
-                if _is_in_progress(field_value, rules):
+                # Campo genérico "Em Tratativa"
+                if normalize_select(field_value) == "EM TRATATIVA":
                     if req_field not in em_tratativa:
                         em_tratativa.append(req_field)
                     continue
                 if _is_empty(field_value) and req_field not in itens:
                     itens.append(req_field)
 
-    # 3. Marketing block: if ANY marketing field is empty → one combined item
+    # 3. Marketing block
     marketing = rules.get("marketing", {})
     marketing_fields = marketing.get("fields", [])
     pending_name = marketing.get("pendencia_name_if_any_empty", "Ações de marketing")
@@ -99,7 +110,13 @@ def evaluate(row: dict) -> tuple:
         if pending_name not in itens:
             itens.append(pending_name)
 
-    return itens, em_tratativa
+    diag_flags = {
+        "aditivo_sim": trigger_norm == "SIM",
+        "aditivo_em_tratativa": aditivo_em_tratativa_flag,
+        "aditivo_finalizado_val": aditivo_finalizado_val
+    }
+
+    return itens, em_tratativa, diag_flags
 
 
 def parse_date(date_str: str) -> datetime | None:

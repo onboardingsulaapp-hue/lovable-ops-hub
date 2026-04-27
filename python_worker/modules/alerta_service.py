@@ -24,19 +24,22 @@ def _norm(value: str) -> str:
     return " ".join(normalized.upper().split())
 
 
-def is_aditivo_em_tratativa(row: dict) -> bool:
-    """Returns True if 'Houve pedido de Aditivo'==SIM and 'Adtivo Finalizado ?'==EM TRATATIVA."""
+def is_aditivo_em_tratativa(row: dict) -> tuple:
+    """
+    Returns (is_tratativa, finalizado_val).
+    is_tratativa: True if 'Houve pedido de Aditivo'==SIM and 'Adtivo Finalizado ?'==EM TRATATIVA.
+    """
+    from modules.rules_engine import normalize_select
+    
     trigger_raw = row.get(ADITIVO_TRIGGER_FIELD, "")
-    trigger = _norm(trigger_raw)
+    trigger = normalize_select(trigger_raw)
     if trigger != "SIM":
-        # print(f"[Debug Aditivo] Trigger '{ADITIVO_TRIGGER_FIELD}' is '{trigger_raw}' (norm: '{trigger}'), skipping.")
-        return False
+        return False, ""
     
     finalizado_raw = row.get(ADITIVO_FINALIZADO_FIELD, "")
-    finalizado = _norm(finalizado_raw)
-    result = (finalizado == "EM TRATATIVA")
-    print(f"[Debug Aditivo] DETECTADO! '{ADITIVO_TRIGGER_FIELD}'=SIM e '{ADITIVO_FINALIZADO_FIELD}'='{finalizado_raw}' (norm: '{finalizado}'). Result: {result}")
-    return result
+    finalizado = normalize_select(finalizado_raw)
+    
+    return (finalizado == "EM TRATATIVA"), finalizado_raw
 
 
 def upsert_aditivo_alert(db, fingerprint: str, row: dict,

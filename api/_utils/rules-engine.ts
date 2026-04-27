@@ -16,7 +16,21 @@ function isEmpty(value: any): boolean {
 }
 
 /**
- * Normaliza strings para IDs e comparações (remover acentos, espaços, etc)
+ * Normalização robusta para campos de seleção (Remover acentos, espaços extras, uppercase)
+ */
+function normalizeSelect(value: any): string {
+  if (value === null || value === undefined) return "";
+  return value
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Normaliza strings para IDs e comparações simples (sem uppercase)
  */
 function normalize(text: string): string {
   if (!text) return 'vazio';
@@ -156,26 +170,23 @@ const ADITIVO_PENDENCY_FIELDS = [
   "Adtivo Finalizado ?",
 ];
 
-/** Normaliza um valor para comparacao sem acentos/caixa **/
-function normStrict(v: any): string {
-  if (!v) return "";
-  return v.toString().trim().toUpperCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ");
-}
-
 /** Verifica se o bloco de aditivo está "Em Tratativa" **/
-function isAditivoEmTratativa(row: any): boolean {
-  const triggerRaw = row[ADITIVO_TRIGGER_FIELD];
-  const triggerNorm = normStrict(triggerRaw);
-  if (triggerNorm !== "SIM") return false;
-
-  const finalizadoRaw = row[ADITIVO_FINALIZADO_FIELD];
-  const finalizadoNorm = normStrict(finalizadoRaw);
-  const result = finalizadoNorm === "EM TRATATIVA";
+function isAditivoEmTratativa(row: any): { isTratativa: boolean, triggerVal: string, finalizadoVal: string } {
+  const triggerVal = row[ADITIVO_TRIGGER_FIELD];
+  const triggerNorm = normalizeSelect(triggerVal);
   
-  console.log(`[Debug Aditivo] DETECTADO! "${ADITIVO_TRIGGER_FIELD}"=SIM e "${ADITIVO_FINALIZADO_FIELD}"="${finalizadoRaw}" (norm: "${finalizadoNorm}"). Result: ${result}`);
-  return result;
+  if (triggerNorm !== "SIM") {
+    return { isTratativa: false, triggerVal, finalizadoVal: "" };
+  }
+
+  const finalizadoVal = row[ADITIVO_FINALIZADO_FIELD];
+  const finalizadoNorm = normalizeSelect(finalizadoVal);
+  
+  return { 
+    isTratativa: finalizadoNorm === "EM TRATATIVA",
+    triggerVal,
+    finalizadoVal
+  };
 }
 
 /**
@@ -188,49 +199,37 @@ export function evaluateRules(row: any): {
   itens: string[];
   emTratativa: string[];
   aditivoEmTratativa: boolean;
+  aditivoSim: boolean;
+  aditivoFinalizadoVal: string;
 } {
-  const itens: string[] = [];
-  const emTratativa: string[] = [];
-  const aditivoETratativa = isAditivoEmTratativa(row);
+  try {
+    const itens: string[] = [];
+    const emTratativa: string[] = [];
 
-  // 1. Required fields
-  for (const field of (rulesJson.required_fields as string[])) {
-    if (isEmpty(row[field])) {
-      itens.push(field);
-    }
-  }
-
-  // 2. Conditional required
-  for (const cond of (rulesJson.conditional_required as any[])) {
-    const triggerValue = (row[cond.if.field] || "").toString().trim().toUpperCase();
-    const matches = (cond.if.equals_any as string[]).some(v => v.toUpperCase() === triggerValue);
-
-    if (matches) {
-      // Regra especial: bloco de Aditivo + "EM TRATATIVA"
-      // => suprimir todos os itens de aditivo; alerta será criado em processRow
-      if (cond.if.field === ADITIVO_TRIGGER_FIELD && aditivoETratativa) {
-        console.log(`[Aditivo] "${ADITIVO_FINALIZADO_FIELD}" = EM TRATATIVA — itens de aditivo suprimidos.`);
-        // Adicionamos aos "avisos" (emTratativa) para aparecer o badge âmbar na tabela
-        for (const reqField of (cond.then_require as string[])) {
-          if (!emTratativa.includes(reqField)) emTratativa.push(reqField);
-        }
-        continue; // pula o processamento normal de pendências para este bloco
+    // 1. Required fields
+    for (const field of (rulesJson.required_fields as string[])) {
+      if (isEmpty(row[field])) {
+        itens.push(field);
       }
+    }
 
-      for (const reqField of (cond.then_require as string[])) {
-        const fieldValue = row[reqField];
-        // Campo genérico "Em Tratativa" — aviso, não pendência
-        if (isInProgress(fieldValue)) {
-          if (!emTratativa.includes(reqField)) emTratativa.push(reqField);
+    // 2. Conditional required fields
+    const { isTratativa: aditivoETratativa, finalizadoVal } = isAditivoEmTratativa(row);
+    const triggerNorm = normalizeSelect(row[ADITIVO_TRIGGER_FIELD]);
+
+    for (const cond of (rulesJson.conditional_required as any[])) {
+      const actualValue = normalizeSelect(row[cond.if.field]);
+      const triggerValues = (cond.if.equals_any as string[]).map(v => normalizeSelect(v));
+
+      if (triggerValues.includes(actualValue)) {
+        // Regra especial: bloco de Aditivo + "EM TRATATIVA"
+        if (cond.if.field === ADITIVO_TRIGGER_FIELD && aditivoETratativa) {
+          // Adicionamos aos "avisos" para visibilidade
+          for (const reqField of (cond.then_require as string[])) {
+            if (!emTratativa.includes(reqField)) emTratativa.push(reqField);
+          }
           continue;
         }
-        if (isEmpty(fieldValue) && !itens.includes(reqField)) {
-          itens.push(reqField);
-        }
-      }
-    }
-  }
-
   // 3. Marketing block
   const marketingFields = rulesJson.marketing.fields as string[];
   const anyMarketingEmpty = marketingFields.some(f => isEmpty(row[f]));
@@ -336,13 +335,13 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   }
 
   // Gate
-  if (!passesGate(row)) return { action: 'ignored_by_gate' };
+  if (!passesGate(cleanedRow)) return { action: 'ignored_by_gate' };
 
   // Rules
-  const { itens, emTratativa, aditivoEmTratativa } = evaluateRules(row);
+  const { itens, emTratativa, aditivoEmTratativa, aditivoSim, aditivoFinalizadoVal } = evaluateRules(cleanedRow);
 
   // Resolve Collab (Mudança para CONSULTOR DE ONBOARDING)
-  const representante = row["CONSULTOR DE ONBOARDING"] || "";
+  const representante = cleanedRow["CONSULTOR DE ONBOARDING"] || "";
   const { id: collabId, mapped } = resolveCollaborator(representante);
 
   if (!mapped && itens.length > 0) {
@@ -350,11 +349,11 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   }
 
   // Fingerprint (necessário antes do alerta e do upsert)
-  const fp = generateFingerprint(row);
+  const fp = generateFingerprint(cleanedRow);
 
   // ── ALERTA: Aditivo Em Tratativa ──────────────────────────
   if (aditivoEmTratativa) {
-    await upsertAditivoAlert(db, fp, row, representante, collabId).catch(e => {
+    await upsertAditivoAlert(db, fp, cleanedRow, representante, collabId).catch(e => {
       console.error(`[Alertas] Falha ao gravar alerta de aditivo para ${fp}:`, e.message);
     });
   }
@@ -362,7 +361,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   // Se nada pendente (após suprimir itens de aditivo), ignorar
   if (itens.length === 0) {
     // Se só havia itens de aditivo (agora Em Tratativa), encerrar sem pendência
-    return { action: 'no_pendency', aditivoEmTratativa };
+    return { action: 'no_pendency', aditivoEmTratativa, aditivoSim, aditivoFinalizadoVal };
   }
 
   const docRef = db.collection('pendencias').doc(fp);
@@ -384,9 +383,9 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
 
   const payload: any = {
     fingerprint: fp,
-    razao_social: row["Razão Social do Cliente"] || "N/A",
-    produto: row["Produto"] || "N/A",
-    data_vigencia: row["Inicio da Vigência de Contrato"] || "N/A",
+    razao_social: cleanedRow["Razão Social do Cliente"] || "N/A",
+    produto: cleanedRow["Produto"] || "N/A",
+    data_vigencia: cleanedRow["Inicio da Vigência de Contrato"] || "N/A",
     status: "Pendente",
     prioridade: "Média",
     origem: "Automático",
@@ -399,8 +398,8 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     colaborador_nome: representante,
     atualizado_em: FieldValue.serverTimestamp(),
     linha_planilha: lineNum,
-    linha_csv: row,
-    tipo_implantacao: (row["Produto"] || "").toString().toUpperCase().includes("ODONTO") ? "Odonto" : "Saúde"
+    linha_csv: cleanedRow,
+    tipo_implantacao: (cleanedRow["Produto"] || "").toString().toUpperCase().includes("ODONTO") ? "Odonto" : "Saúde"
   };
 
   let action: 'criada' | 'editada' | 'sem_mudanca' = 'sem_mudanca';
@@ -434,7 +433,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
         console.error(`[Firestore] Falha ao atualizar metadados ${fp}:`, e.message);
         throw e;
       });
-      return { action: 'sem_mudanca', fp, aditivoEmTratativa };
+      return { action: 'sem_mudanca', fp, aditivoEmTratativa, aditivoSim, aditivoFinalizadoVal };
     }
   }
 
@@ -453,7 +452,13 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     console.error(`[Firestore] Falha ao registrar histórico para ${fp}:`, e.message);
   });
 
-  return { action, fp, aditivoEmTratativa };
+  return { 
+    action, 
+    fp, 
+    aditivoEmTratativa, 
+    aditivoSim, 
+    aditivoFinalizadoVal 
+  };
 }
 
 /**

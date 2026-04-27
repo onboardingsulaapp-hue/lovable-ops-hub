@@ -102,10 +102,22 @@ def process_job(job_id: str, job_data: dict):
     amostras: list[str] = []
     # Aditivo Em Tratativa
     qtd_alertas_aditivo_tratativa = 0
-    qtd_pendencias_aditivo_suprimidas = 0
-    exemplos_alertas_aditivo: list[dict] = []
+    qtd_aditivo_sim = 0
+    qtd_aditivo_em_tratativa = 0
+    exemplos_em_tratativa = []
+    exemplos_aditivo_sim_sem_finalizado = []
+    aditivo_finalizado_counts = {}  # Para o top 10
+    error_columns_missing = []
+    
+    # Verificar colunas obrigatórias para aditivo
+    required_aditivo = ["Houve pedido de Aditivo", "Adtivo Finalizado ?"]
+    sample_row = rows[0] if rows else {}
+    for col in required_aditivo:
+        if col not in sample_row:
+            error_columns_missing.append(col)
 
     for row in rows:
+        linhas_processadas += 1
         from modules.rules_engine import _load_rules
         rules = _load_rules()
 
@@ -123,34 +135,50 @@ def process_job(job_id: str, job_data: dict):
 
         linhas_gate += 1
 
-        # Detectar caso especial: Aditivo Em Tratativa
-        aditivo_tratativa = is_aditivo_em_tratativa(row)
-
         # Apply validation rules
-        itens_pendentes, em_tratativa = evaluate(row)
+        itens_pendentes, em_tratativa, diag = evaluate(row)
+        
+        # Coleta de diagnósticos de Aditivo
+        if diag["aditivo_sim"]:
+            qtd_aditivo_sim += 1
+            
+            f_val_raw = diag["aditivo_finalizado_val"]
+            from modules.rules_engine import normalize_select
+            f_val_norm = normalize_select(f_val_raw)
+            
+            # Contagem para top 10
+            if f_val_norm:
+                aditivo_finalizado_counts[f_val_norm] = aditivo_finalizado_counts.get(f_val_norm, 0) + 1
+            
+            # Exemplo de SIM sem finalizado preenchido
+            if not f_val_raw and len(exemplos_aditivo_sim_sem_finalizado) < 5:
+                exemplos_aditivo_sim_sem_finalizado.append({
+                    "razao_social": row.get("Razão Social do Cliente", "N/A"),
+                    "valor_cru": f_val_raw
+                })
 
-        # Resolve collaborator
+        # Caso em Tratativa
+        if diag["aditivo_em_tratativa"]:
+            qtd_aditivo_em_tratativa += 1
+            if len(exemplos_em_tratativa) < 5:
+                exemplos_em_tratativa.append({
+                    "razao_social": row.get("Razão Social do Cliente", "N/A"),
+                    "valor_cru": diag["aditivo_finalizado_val"],
+                    "valor_normalizado": "EM TRATATIVA"
+                })
+
+        # Resolve colaborador
         representante = row.get("CONSULTOR DE ONBOARDING", "")
         uid, is_mapped = resolve_collaborator(representante)
 
-        # Se Aditivo Em Tratativa: criar alerta e remover itens de aditivo
+        # Se Aditivo Em Tratativa: criar alerta
         fp = make_fingerprint(row)
-        if aditivo_tratativa:
+        if diag["aditivo_em_tratativa"]:
             try:
                 created = upsert_aditivo_alert(db, fp, row, representante, uid)
-                qtd_pendencias_aditivo_suprimidas += 1
                 qtd_alertas_aditivo_tratativa += 1
-                if len(exemplos_alertas_aditivo) < 5:
-                    exemplos_alertas_aditivo.append({
-                        "razao_social": row.get("Razão Social do Cliente", "N/A"),
-                        "fingerprint": fp,
-                        "novo": created
-                    })
             except Exception as e:
                 print(f"[Worker] Erro ao criar alerta de aditivo: {e}")
-
-            # Remover itens de aditivo da lista (suprimidos)
-            itens_pendentes = [i for i in itens_pendentes if i not in ADITIVO_PENDENCY_FIELDS]
 
         if not itens_pendentes and not em_tratativa:
             linhas_sem_pendencia += 1
@@ -183,11 +211,15 @@ def process_job(job_id: str, job_data: dict):
         "ignoradas_por_status": ignoradas_por_status,
         "criadas": criadas,
         "atualizadas": atualizadas,
+        "linhas_sem_pendencia": linhas_sem_pendencia,
         "nao_mapeados": nao_mapeados,
-        "amostras": amostras,
         "qtd_alertas_aditivo_tratativa": qtd_alertas_aditivo_tratativa,
-        "qtd_pendencias_aditivo_suprimidas": qtd_pendencias_aditivo_suprimidas,
-        "exemplos_alertas_aditivo_tratativa": exemplos_alertas_aditivo,
+        "qtd_aditivo_sim": qtd_aditivo_sim,
+        "qtd_aditivo_em_tratativa": qtd_aditivo_em_tratativa,
+        "valores_unicos_aditivo_finalizado": sorted(aditivo_finalizado_counts.items(), key=lambda x: x[1], reverse=True)[:10],
+        "exemplos_em_tratativa": exemplos_em_tratativa,
+        "exemplos_aditivo_sim_sem_finalizado": exemplos_aditivo_sim_sem_finalizado,
+        "error_columns_missing": error_columns_missing
     }
 
     print(f"\n[Worker] Job {job_id} completed:")
