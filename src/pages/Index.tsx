@@ -21,6 +21,7 @@ import { auth, db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, Timestamp, orderBy } from "firebase/firestore";
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import logoImg from "@/assets/brand/sulamerica_logo.png";
+import { GenerateReportButton } from "@/components/admin/GenerateReportButton";
 
 const emptyFilters: Filters = { colaborador_id: "", status: "", prioridade: "", origem: "", data_inicio: "", data_fim: "", tipo_implantacao: "" };
 
@@ -765,6 +766,7 @@ const Index = () => {
                     pendencias={filteredPendencias} 
                     onConfirm={handleSendEmailToBackend} 
                   />
+                  <GenerateReportButton />
                 </>
               )}
               {user.role === "socio" && (
