@@ -66,7 +66,11 @@ function getLinhaDisplay(p: PendenciaDoc): string {
 
 function getItens(p: PendenciaDoc): string[] {
   const arr = p.itens_pendentes ?? p.pendencias ?? p.erros ?? [];
-  return Array.isArray(arr) ? arr : [];
+  const items = Array.isArray(arr) ? arr : [];
+  // Remove marcadores internos do sistema que não devem aparecer no relatório
+  return items.filter(
+    (i) => !i.toLowerCase().includes("sem responsável") && !i.toLowerCase().includes("sem responsavel")
+  );
 }
 
 function getAtualizadoEm(p: PendenciaDoc): string {
