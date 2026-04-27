@@ -180,7 +180,9 @@ def process_job(job_id: str, job_data: dict):
             except Exception as e:
                 print(f"[Worker] Erro ao criar alerta de aditivo: {e}")
 
-        if not itens_pendentes and not em_tratativa:
+        # Se não houver itens pendentes REAIS, não cria pendência na lista principal
+        # Mesmo que haja itens em tratativa (avisos), eles só aparecerão se a pendência já existir ou for criada por outro motivo.
+        if not itens_pendentes:
             linhas_sem_pendencia += 1
             continue
 
