@@ -100,17 +100,21 @@ const Index = () => {
     // Adicionar pré-cadastros primeiro
     preUsers.forEach(u => {
       const email = u.email?.toLowerCase().trim();
-      if (email) map.set(email, u);
+      if (email) {
+        map.set(email, { ...u, id: email }); // Garantir que id inicial é o email
+      }
     });
 
-    // Sobrescrever com dados de usuários ativos (que já têm UID e perfil logado)
+    // Sobrescrever/Mesclar com dados de usuários ativos
     users.forEach(u => {
       const email = u.email?.toLowerCase().trim();
       if (email) {
         const existing = map.get(email);
-        map.set(email, { ...existing, ...u });
+        // Ao mesclar, o ID final preferencial é o UID (u.id), mas mantemos o email para referência
+        map.set(email, { ...existing, ...u, uid: u.uid || u.id });
       } else {
-        map.set(u.id, u);
+        // Se não tem email, usa o ID do doc (UID) como chave
+        map.set(u.id, { ...u, uid: u.id });
       }
     });
 
@@ -181,11 +185,29 @@ const Index = () => {
     let result = activePendencias;
     if (filters.colaborador_id) {
       const selectedUser = allUsers.find(u => u.id === filters.colaborador_id);
-      result = result.filter((p) => 
-        p.colaborador_id === filters.colaborador_id || 
-        (selectedUser && p.colaborador_nome === selectedUser.nome) ||
-        p.colaborador_nome === filters.colaborador_id
-      );
+      const normalizeName = (name: string) => name ? name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
+      const selectedNameNorm = selectedUser ? normalizeName(selectedUser.nome) : normalizeName(filters.colaborador_id);
+      
+      result = result.filter((p) => {
+        const pColabId = p.colaborador_id;
+        const pColabNomeNorm = normalizeName(p.colaborador_nome);
+        
+        // Match por ID direto (UID ou Email)
+        if (pColabId === filters.colaborador_id) return true;
+        
+        if (selectedUser) {
+          // Se selecionamos um usuário, tentamos match com as propriedades dele
+          if (pColabId === selectedUser.uid) return true;
+          if (pColabId?.toLowerCase() === selectedUser.email?.toLowerCase()) return true;
+          if (pColabNomeNorm === normalizeName(selectedUser.nome)) return true;
+          if (pColabNomeNorm === normalizeName(selectedUser.email)) return true;
+        }
+        
+        // Fallback para o valor bruto do filtro (caso não tenha achado selectedUser)
+        if (pColabNomeNorm === selectedNameNorm) return true;
+
+        return false;
+      });
     }
     if (filters.status) result = result.filter((p) => p.status === filters.status);
     
