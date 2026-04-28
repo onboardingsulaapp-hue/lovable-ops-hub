@@ -89,17 +89,22 @@ export function AlertasPanel() {
             {alertas.map((alerta) => (
               <TableRow key={alerta.id} className="hover:bg-brand-light/80 transition-colors">
                 <TableCell className="text-xs">
-                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1">
+                  <Badge variant="outline" className={`${alerta.aditivo_status === 'EM TRATATIVA' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200'} gap-1 uppercase text-[10px]`}>
                     <AlertTriangle className="h-3 w-3" />
-                    Aditivo em Tratativa
+                    {alerta.aditivo_status === 'EM TRATATIVA' ? 'Aditivo' : 'Tratativa'}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-sm font-medium">{alerta.razao_social}</TableCell>
                 <TableCell className="text-sm">{alerta.colaborador_nome}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {alerta.updated_at?.seconds 
-                    ? new Date(alerta.updated_at.seconds * 1000).toLocaleString("pt-BR")
-                    : "—"}
+                  <div className="flex flex-col">
+                    <span>{alerta.updated_at?.seconds 
+                      ? new Date(alerta.updated_at.seconds * 1000).toLocaleString("pt-BR")
+                      : "—"}</span>
+                    <span className="text-[10px] italic text-muted-foreground/70 max-w-[200px] truncate" title={alerta.mensagem}>
+                      {alerta.mensagem}
+                    </span>
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Badge variant="secondary" className="text-[10px] font-bold uppercase">

@@ -150,12 +150,15 @@ export function passesGate(row: any): boolean {
  */
 function isInProgress(value: any): boolean {
   if (!value) return false;
-  const str = value.toString().trim().toUpperCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const progressValues = ((rulesJson as any).in_progress_values as string[] || []).map(
-    (v: string) => v.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-  );
-  return progressValues.includes(str);
+  const valNorm = normalizeSelect(value);
+  const progressValues = ((rulesJson as any).in_progress_values as string[] || []).map(v => normalizeSelect(v));
+  // Adicionar variações comuns se não estiverem no JSON
+  if (!progressValues.includes("EM TRATATIVA")) progressValues.push("EM TRATATIVA");
+  if (!progressValues.includes("EM TRATATIVAS")) progressValues.push("EM TRATATIVAS");
+  if (!progressValues.includes("TRATATIVA")) progressValues.push("TRATATIVA");
+  if (!progressValues.includes("TRATATIVAS")) progressValues.push("TRATATIVAS");
+  
+  return progressValues.includes(valNorm);
 }
 
 // ============================================================
@@ -170,7 +173,6 @@ const ADITIVO_PENDENCY_FIELDS = [
   "Adtivo Finalizado ?",
 ];
 
-/** Verifica se o bloco de aditivo está "Em Tratativa" **/
 function isAditivoEmTratativa(row: any): { isTratativa: boolean, triggerVal: string, finalizadoVal: string } {
   const triggerVal = row[ADITIVO_TRIGGER_FIELD];
   const triggerNorm = normalizeSelect(triggerVal);
@@ -182,8 +184,10 @@ function isAditivoEmTratativa(row: any): { isTratativa: boolean, triggerVal: str
   const finalizadoVal = row[ADITIVO_FINALIZADO_FIELD];
   const finalizadoNorm = normalizeSelect(finalizadoVal);
   
+  const isTratativa = isInProgress(finalizadoVal);
+  
   return { 
-    isTratativa: finalizadoNorm === "EM TRATATIVA",
+    isTratativa,
     triggerVal,
     finalizadoVal
   };
@@ -233,7 +237,7 @@ export function evaluateRules(row: any): {
         for (const reqField of (cond.then_require as string[])) {
           const fieldValue = row[reqField];
           // Campo genérico "Em Tratativa"
-          if (normalizeSelect(fieldValue) === "EM TRATATIVA") {
+          if (isInProgress(fieldValue)) {
             if (!emTratativa.includes(reqField)) emTratativa.push(reqField);
             continue;
           }
@@ -268,23 +272,33 @@ export function evaluateRules(row: any): {
 }
 
 /**
- * Upsert idempotente de um alerta de "Aditivo Em Tratativa" na collection alertas
+ * Upsert idempotente de um alerta de "Em Tratativa" na collection alertas
  */
-async function upsertAditivoAlert(
+async function upsertTratativaAlert(
   db: FirebaseFirestore.Firestore,
   fp: string,
   row: any,
   colaboradorNome: string,
-  colaboradorId: string | null
+  colaboradorId: string | null,
+  emTratativa: string[],
+  aditivoEmTratativa: boolean
 ) {
   console.log(`[Alertas] Iniciando upsert de alerta para fingerprint: ${fp}`);
-  const alertId = `aditivo_tratativa_${fp}`;
+  const alertId = `tratativa_${fp}`;
   const alertRef = db.collection("alertas").doc(alertId);
   const snap = await alertRef.get();
   const now = FieldValue.serverTimestamp();
 
+  // Construir mensagem detalhada
+  let mensagem = "";
+  if (aditivoEmTratativa) {
+    mensagem = "Aditivo em tratativa — pendências de aditivo suprimidas.";
+  } else {
+    mensagem = `Itens em tratativa identificados: ${emTratativa.join(", ")}.`;
+  }
+
   const base = {
-    tipo: "aditivo_em_tratativa",
+    tipo: "aditivo_em_tratativa", // Mantemos o tipo para compatibilidade com UI atual ou mudamos se necessário
     fingerprint: fp,
     razao_social: row["Razão Social do Cliente"] || "N/A",
     produto: row["Produto"] || "N/A",
@@ -292,8 +306,9 @@ async function upsertAditivoAlert(
     colaborador_nome: colaboradorNome,
     colaborador_id: colaboradorId,
     status_empresa: row["Status da Empresa"] || "N/A",
-    aditivo_status: "EM TRATATIVA",
-    mensagem: "Aditivo em tratativa — pendências de aditivo suprimidas.",
+    aditivo_status: aditivoEmTratativa ? "EM TRATATIVA" : "AVISO",
+    mensagem,
+    itens_em_tratativa: emTratativa,
     updated_at: now,
   };
 
@@ -376,10 +391,10 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   // Fingerprint (necessário antes do alerta e do upsert)
   const fp = generateFingerprint(cleanedRow);
 
-  // ── ALERTA: Aditivo Em Tratativa ──────────────────────────
-  if (aditivoEmTratativa) {
-    await upsertAditivoAlert(db, fp, cleanedRow, representante, collabId).catch(e => {
-      console.error(`[Alertas] Falha ao gravar alerta de aditivo para ${fp}:`, e.message);
+  // ── ALERTA: Itens Em Tratativa / Aditivo ──────────────────────────
+  if (aditivoEmTratativa || emTratativa.length > 0) {
+    await upsertTratativaAlert(db, fp, cleanedRow, representante, collabId, emTratativa, aditivoEmTratativa).catch(e => {
+      console.error(`[Alertas] Falha ao gravar alerta para ${fp}:`, e.message);
     });
   }
 

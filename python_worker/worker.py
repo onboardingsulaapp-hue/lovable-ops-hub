@@ -171,14 +171,15 @@ def process_job(job_id: str, job_data: dict):
         representante = row.get("CONSULTOR DE ONBOARDING", "")
         uid, is_mapped = resolve_collaborator(representante)
 
-        # Se Aditivo Em Tratativa: criar alerta
+        # Se Aditivo ou Itens Em Tratativa: criar alerta
         fp = make_fingerprint(row)
-        if diag["aditivo_em_tratativa"]:
+        if diag["aditivo_em_tratativa"] or em_tratativa:
             try:
-                created = upsert_aditivo_alert(db, fp, row, representante, uid)
+                from modules.alerta_service import upsert_tratativa_alert
+                created = upsert_tratativa_alert(db, fp, row, representante, uid, em_tratativa, diag["aditivo_em_tratativa"])
                 qtd_alertas_aditivo_tratativa += 1
             except Exception as e:
-                print(f"[Worker] Erro ao criar alerta de aditivo: {e}")
+                print(f"[Worker] Erro ao criar alerta: {e}")
 
         # Se não houver itens pendentes REAIS, não cria pendência na lista principal
         # Mesmo que haja itens em tratativa (avisos), eles só aparecerão se a pendência já existir ou for criada por outro motivo.

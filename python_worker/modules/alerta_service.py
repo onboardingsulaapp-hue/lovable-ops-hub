@@ -39,22 +39,28 @@ def is_aditivo_em_tratativa(row: dict) -> tuple:
     finalizado_raw = row.get(ADITIVO_FINALIZADO_FIELD, "")
     finalizado = normalize_select(finalizado_raw)
     
-    return (finalizado == "EM TRATATIVA"), finalizado_raw
+    markers = ["EM TRATATIVA", "EM TRATATIVAS", "TRATATIVA", "TRATATIVAS"]
+    return (finalizado in markers), finalizado_raw
 
 
-def upsert_aditivo_alert(db, fingerprint: str, row: dict,
-                          colaborador_nome: str, colaborador_id) -> bool:
+def upsert_tratativa_alert(db, fingerprint: str, row: dict,
+                           colaborador_nome: str, colaborador_id,
+                           em_tratativa: list, aditivo_em_tratativa: bool) -> bool:
     """
-    Idempotent upsert of an 'aditivo_em_tratativa' alert.
-    Returns True if created, False if only updated.
+    Idempotent upsert of a 'tratativa' alert.
     """
     print(f"[Alertas] Iniciando upsert de alerta para fingerprint: {fingerprint}")
-    alert_id = f"aditivo_tratativa_{fingerprint}"
+    alert_id = f"tratativa_{fingerprint}"
     ref = db.collection("alertas").document(alert_id)
     existing = ref.get()
 
+    if aditivo_em_tratativa:
+        mensagem = "Aditivo em tratativa — pendências de aditivo suprimidas."
+    else:
+        mensagem = f"Itens em tratativa identificados: {', '.join(em_tratativa)}."
+
     base = {
-        "tipo": "aditivo_em_tratativa",
+        "tipo": "aditivo_em_tratativa", # Mantemos o tipo para compatibilidade com UI
         "fingerprint": fingerprint,
         "razao_social": row.get("Razão Social do Cliente", "N/A"),
         "produto": row.get("Produto", "N/A"),
@@ -62,8 +68,9 @@ def upsert_aditivo_alert(db, fingerprint: str, row: dict,
         "colaborador_nome": colaborador_nome,
         "colaborador_id": colaborador_id,
         "status_empresa": row.get("Status da Empresa", "N/A"),
-        "aditivo_status": "EM TRATATIVA",
-        "mensagem": "Aditivo em tratativa — pendências de aditivo suprimidas.",
+        "aditivo_status": "EM TRATATIVA" if aditivo_em_tratativa else "AVISO",
+        "mensagem": mensagem,
+        "itens_em_tratativa": em_tratativa,
         "updated_at": SERVER_TIMESTAMP,
     }
 

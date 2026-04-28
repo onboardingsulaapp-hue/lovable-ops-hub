@@ -12,5 +12,6 @@ export interface Alerta {
   mensagem: string;
   created_at: any;
   updated_at: any;
+  itens_em_tratativa?: string[];
   resolved: boolean;
 }

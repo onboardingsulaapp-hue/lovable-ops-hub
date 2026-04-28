@@ -40,9 +40,15 @@ def _is_in_progress(value: str, rules: dict) -> bool:
     """Returns True if the value is an in-progress marker (e.g. 'Em Tratativa')."""
     if not value:
         return False
-    progress_values = rules.get("in_progress_values", [])
-    value_norm = normalize_select(value)
-    return any(normalize_select(v) == value_norm for v in progress_values)
+    val_norm = normalize_select(value)
+    progress_values = [normalize_select(v) for v in rules.get("in_progress_values", [])]
+    # Variações comuns
+    extras = ["EM TRATATIVA", "EM TRATATIVAS", "TRATATIVA", "TRATATIVAS"]
+    for e in extras:
+        if e not in progress_values:
+            progress_values.append(e)
+            
+    return val_norm in progress_values
 
 
 def evaluate(row: dict) -> tuple:
@@ -88,7 +94,7 @@ def evaluate(row: dict) -> tuple:
             for req_field in cond.get("then_require", []):
                 field_value = row.get(req_field, "")
                 # Campo genérico "Em Tratativa"
-                if normalize_select(field_value) == "EM TRATATIVA":
+                if _is_in_progress(field_value, rules):
                     if req_field not in em_tratativa:
                         em_tratativa.append(req_field)
                     continue
