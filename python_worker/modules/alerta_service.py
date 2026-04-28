@@ -79,7 +79,15 @@ def upsert_tratativa_alert(db, fingerprint: str, row: dict,
         print(f"[Alertas] Alerta CRIADO com sucesso: {alert_id}")
         return True
     else:
-        # Reativar o alerta se ele já existia (garantir que apareça na aba de alertas)
-        ref.update({**base, "resolved": False})
-        print(f"[Alertas] Alerta ATUALIZADO (reativado) com sucesso: {alert_id}")
-        return False
+        before = existing.to_dict()
+        # Prevenção de duplicidade: Só atualiza se houve mudança real ou se estava resolvido e continua no CSV
+        has_changed = (before.get("mensagem") != mensagem or 
+                       before.get("itens_em_tratativa") != em_tratativa)
+        
+        if has_changed or before.get("resolved") is True:
+            ref.update({**base, "resolved": False})
+            print(f"[Alertas] Alerta ATUALIZADO/REATIVADO: {alert_id}")
+            return True
+        else:
+            print(f"[Alertas] Alerta sem mudanças, ignorando update: {alert_id}")
+            return False

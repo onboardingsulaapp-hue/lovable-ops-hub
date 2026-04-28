@@ -318,9 +318,17 @@ async function upsertTratativaAlert(
     await alertRef.set({ ...base, resolved: false, created_at: now });
     console.log(`[Alertas] Alerta CRIADO com sucesso: ${alertId}`);
   } else {
-    // Reativar o alerta se ele já existia (garantir que apareça na aba de alertas)
-    await alertRef.update({ ...base, resolved: false });
-    console.log(`[Alertas] Alerta ATUALIZADO (reativado) com sucesso: ${alertId}`);
+    const before = snap.data();
+    // Prevenção de duplicidade: Só atualiza/reativa se houve mudança real ou se estava resolvido e continua no CSV
+    const hasChanged = before?.mensagem !== mensagem || 
+                       JSON.stringify(before?.itens_em_tratativa) !== JSON.stringify(emTratativa);
+    
+    if (hasChanged || before?.resolved === true) {
+      await alertRef.update({ ...base, resolved: false });
+      console.log(`[Alertas] Alerta ATUALIZADO/REATIVADO: ${alertId}`);
+    } else {
+      console.log(`[Alertas] Alerta sem mudanças, ignorando update: ${alertId}`);
+    }
   }
 }
 
@@ -403,9 +411,10 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   // Se nada pendente e NADA em tratativa, tenta resolver pendência antiga
   if (itens.length === 0 && emTratativa.length === 0 && !aditivoEmTratativa) {
     try {
-      // DESATIVADO TEMPORARIAMENTE PARA INVESTIGAÇÃO
-      // await autoResolvePendency(db, fp);
-      console.log(`[AutoResolve] Ignorado para ${fp} (desativado)`);
+      const resolved = await autoResolvePendency(db, fp);
+      if (resolved) {
+        return { action: 'editada', fp, aditivoEmTratativa, aditivoSim, aditivoFinalizadoVal };
+      }
     } catch (e) {
       console.error(`[AutoResolve] Falha ao resolver ${fp}:`, e.message);
     }
@@ -489,7 +498,16 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     }
   }
 
-  // Registrar Histórico
+  // Registrar Histórico com inteligência de mudanças
+  const oldItens = before?.itens_pendentes || [];
+  const resolvidos = (oldItens as string[]).filter(i => !itensFinais.includes(i));
+  const novos = itensFinais.filter(i => !(oldItens as string[]).includes(i));
+  
+  let comentario = "Sincronização via processamento de CSV.";
+  if (resolvidos.length > 0) comentario += ` Itens preenchidos: ${resolvidos.join(', ')}.`;
+  if (novos.length > 0) comentario += ` Novos itens detectados: ${novos.join(', ')}.`;
+  if (itensFinais.length === 0 && oldItens.length > 0) comentario = "Pendência totalmente resolvida via CSV.";
+
   console.log(`[Firestore] Registrando histórico para: ${fp}`);
   await docRef.collection('historico').add({
     acao: action,
@@ -497,7 +515,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     usuario_nome: "Sincronizador Automático (Vercel)",
     perfil: "system",
     timestamp: FieldValue.serverTimestamp(),
-    comentario: "Sincronização via processamento de CSV.",
+    comentario: comentario,
     antes: before,
     depois: payload
   }).catch(e => {

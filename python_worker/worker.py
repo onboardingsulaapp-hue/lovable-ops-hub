@@ -185,11 +185,12 @@ def process_job(job_id: str, job_data: dict):
         if not itens_pendentes and not em_tratativa and not diag["aditivo_em_tratativa"]:
             linhas_sem_pendencia += 1
             try:
-                # DESATIVADO TEMPORARIAMENTE PARA INVESTIGAÇÃO
-                # resolved = resolve_pendencia(db, fp)
-                # if resolved:
-                #    print(f"[Worker] Pendência resolvida automaticamente para {fp}")
-                pass
+                resolved = resolve_pendencia(db, fp)
+                if resolved:
+                    print(f"[Worker] Pendência resolvida automaticamente para {fp}")
+                    # Gravar histórico de finalização
+                    record_historico(db, fp, "editada", comentario="Pendência totalmente resolvida via CSV.")
+                    atualizadas += 1
             except Exception as e:
                 print(f"[Worker] Erro ao resolver pendência: {e}")
             continue
@@ -214,7 +215,21 @@ def process_job(job_id: str, job_data: dict):
                 amostras.append(f"[CRIADA] {row.get('Razão Social do Cliente', fp)}")
         elif action == "atualizada":
             atualizadas += 1
-            record_historico(db, fp, "editada", before=before)
+            
+            # Cálculo de itens resolvidos e novos para o histórico
+            old_itens = set(before.get("itens_pendentes", []) or before.get("pendencias", []))
+            new_itens = set(itens_pendentes)
+            
+            resolvidos = old_itens - new_itens
+            novos = new_itens - old_itens
+            
+            comentario = "Sincronização via processamento de CSV."
+            if resolvidos:
+                comentario += f" Itens preenchidos: {', '.join(resolvidos)}."
+            if novos:
+                comentario += f" Novos itens detectados: {', '.join(novos)}."
+            
+            record_historico(db, fp, "editada", before=before, comentario=comentario)
             if len(amostras) < 20:
                 amostras.append(f"[ATUALIZADA] {row.get('Razão Social do Cliente', fp)}")
         # "sem_mudanca" → no historico needed
