@@ -181,8 +181,8 @@ def process_job(job_id: str, job_data: dict):
             except Exception as e:
                 print(f"[Worker] Erro ao criar alerta: {e}")
 
-        # Se não houver itens pendentes REAIS, tenta resolver pendência antiga se existir
-        if not itens_pendentes:
+        # Se não houver itens pendentes REAIS e NADA em tratativa, tenta resolver pendência antiga se existir
+        if not itens_pendentes and not em_tratativa and not diag["aditivo_em_tratativa"]:
             linhas_sem_pendencia += 1
             try:
                 resolved = resolve_pendencia(db, fp)
@@ -190,6 +190,11 @@ def process_job(job_id: str, job_data: dict):
                     print(f"[Worker] Pendência resolvida automaticamente para {fp}")
             except Exception as e:
                 print(f"[Worker] Erro ao resolver pendência: {e}")
+            continue
+
+        # Se apenas não houver itens pendentes REAIS (mas pode haver tratativa), apenas ignora criação de pendência
+        if not itens_pendentes:
+            linhas_sem_pendencia += 1
             continue
 
         if not is_mapped and len(itens_pendentes) > 0:

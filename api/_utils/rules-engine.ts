@@ -218,7 +218,8 @@ export function evaluateRules(row: any): {
     }
 
     // 2. Conditional required fields
-    const { isTratativa: aditivoETratativa, finalizadoVal } = isAditivoEmTratativa(row);
+    const { isTratativa: aditivoETratativa, finalizadoVal, triggerVal } = isAditivoEmTratativa(row);
+    const aditivoSim = normalizeSelect(triggerVal) === "SIM";
     const triggerNorm = normalizeSelect(row[ADITIVO_TRIGGER_FIELD]);
 
     for (const cond of (rulesJson.conditional_required as any[])) {
@@ -266,8 +267,9 @@ export function evaluateRules(row: any): {
       aditivoFinalizadoVal: finalizadoVal
     };
   } catch (error) {
-    console.error("[rules-engine] Erro ao avaliar regras:", error);
-    return { itens: [], emTratativa: [], aditivoEmTratativa: false, aditivoSim: false, aditivoFinalizadoVal: "" };
+    console.error("[rules-engine] Erro crítico ao avaliar regras:", error);
+    // IMPORTANTE: Retornar algo que sinalize erro, para NÃO dar 'OK' automático
+    throw error;
   }
 }
 
@@ -398,14 +400,17 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     });
   }
 
-  // Se nada pendente (após suprimir itens de aditivo), tenta resolver pendência antiga
-  if (itens.length === 0) {
+  // Se nada pendente e NADA em tratativa, tenta resolver pendência antiga
+  if (itens.length === 0 && emTratativa.length === 0 && !aditivoEmTratativa) {
     try {
       await autoResolvePendency(db, fp);
     } catch (e) {
       console.error(`[AutoResolve] Falha ao resolver ${fp}:`, e.message);
     }
-    // Se só havia itens de aditivo (agora Em Tratativa), encerrar sem pendência
+  }
+
+  // Se nada pendente real, mas pode haver tratativas/avisos, encerrar processamento da linha
+  if (itens.length === 0) {
     return { action: 'no_pendency', aditivoEmTratativa, aditivoSim, aditivoFinalizadoVal };
   }
 
