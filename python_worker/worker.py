@@ -185,9 +185,11 @@ def process_job(job_id: str, job_data: dict):
         if not itens_pendentes and not em_tratativa and not diag["aditivo_em_tratativa"]:
             linhas_sem_pendencia += 1
             try:
-                resolved = resolve_pendencia(db, fp)
-                if resolved:
-                    print(f"[Worker] Pendência resolvida automaticamente para {fp}")
+                # DESATIVADO TEMPORARIAMENTE PARA INVESTIGAÇÃO
+                # resolved = resolve_pendencia(db, fp)
+                # if resolved:
+                #    print(f"[Worker] Pendência resolvida automaticamente para {fp}")
+                pass
             except Exception as e:
                 print(f"[Worker] Erro ao resolver pendência: {e}")
             continue

@@ -10,9 +10,9 @@ import { FieldValue } from 'firebase-admin/firestore';
  */
 function isEmpty(value: any): boolean {
   if (value === null || value === undefined) return true;
-  const str = value.toString().trim();
-  if (str === "" || str === "-" || str === "—" || str === "–") return true;
-  return false;
+  const str = value.toString().trim().toUpperCase();
+  const emptyMarkers = ["", "-", "—", "–", "N/A", "PENDENTE", "A DEFINIR", "...", "N.A"];
+  return emptyMarkers.includes(str);
 }
 
 /**
@@ -403,7 +403,9 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   // Se nada pendente e NADA em tratativa, tenta resolver pendência antiga
   if (itens.length === 0 && emTratativa.length === 0 && !aditivoEmTratativa) {
     try {
-      await autoResolvePendency(db, fp);
+      // DESATIVADO TEMPORARIAMENTE PARA INVESTIGAÇÃO
+      // await autoResolvePendency(db, fp);
+      console.log(`[AutoResolve] Ignorado para ${fp} (desativado)`);
     } catch (e) {
       console.error(`[AutoResolve] Falha ao resolver ${fp}:`, e.message);
     }

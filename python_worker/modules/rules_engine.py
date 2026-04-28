@@ -21,7 +21,12 @@ def _load_rules() -> dict:
 
 
 def _is_empty(value: str) -> bool:
-    return not value or value.strip() == ""
+    if not value:
+        return True
+    val = str(value).strip().upper()
+    # Marcadores comuns de campo não preenchido
+    empty_markers = ["", "-", "—", "–", "N/A", "PENDENTE", "A DEFINIR", "...", "N.A"]
+    return val in empty_markers
 
 
 def passes_gate(row: dict, rules: dict) -> bool:
