@@ -55,3 +55,25 @@ def upsert(db, fingerprint: str, itens_pendentes: List[str],
             return "sem_mudanca", before
         ref.set(new_data, merge=True)
         return "atualizada", before
+
+
+def resolve_if_exists(db, fingerprint: str) -> bool:
+    """
+    If a pendencia exists and is not 'OK', set it to 'OK'.
+    Returns True if updated, False otherwise.
+    """
+    ref = db.collection("pendencias").document(fingerprint)
+    doc = ref.get()
+    if doc.exists:
+        data = doc.to_dict()
+        # Se estiver deletado, ignorar
+        if data.get("isDeleted"):
+            return False
+            
+        if data.get("status") != "OK":
+            ref.update({
+                "status": "OK",
+                "atualizado_em": SERVER_TIMESTAMP
+            })
+            return True
+    return False

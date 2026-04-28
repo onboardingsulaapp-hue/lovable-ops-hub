@@ -398,8 +398,13 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     });
   }
 
-  // Se nada pendente (após suprimir itens de aditivo), ignorar
+  // Se nada pendente (após suprimir itens de aditivo), tenta resolver pendência antiga
   if (itens.length === 0) {
+    try {
+      await autoResolvePendency(db, fp);
+    } catch (e) {
+      console.error(`[AutoResolve] Falha ao resolver ${fp}:`, e.message);
+    }
     // Se só havia itens de aditivo (agora Em Tratativa), encerrar sem pendência
     return { action: 'no_pendency', aditivoEmTratativa, aditivoSim, aditivoFinalizadoVal };
   }
@@ -515,4 +520,25 @@ export function cleanRow(rawRow: any): any {
     cleaned[canonicalKey] = (value as string || "").toString().trim();
   }
   return cleaned;
+}
+/**
+ * Caso a linha do CSV esteja limpa, verifica se havia uma pendência aberta
+ * e a marca como 'OK' automaticamente.
+ */
+async function autoResolvePendency(db: any, fp: string) {
+  const docRef = db.collection('pendencias').doc(fp);
+  const snap = await docRef.get();
+  
+  if (snap.exists) {
+    const data = snap.data();
+    if (data.status !== "OK" && !data.isDeleted) {
+      console.log(`[AutoResolve] Resolvendo pendência para ${fp}`);
+      await docRef.update({
+        status: "OK",
+        atualizado_em: FieldValue.serverTimestamp()
+      });
+      return true;
+    }
+  }
+  return false;
 }

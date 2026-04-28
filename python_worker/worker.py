@@ -31,7 +31,7 @@ from modules.csv_reader import read_csv
 from modules.rules_engine import passes_gate, evaluate, passes_date_filter
 from modules.fingerprint import generate as make_fingerprint
 from modules.collaborator_resolver import resolve as resolve_collaborator
-from modules.pendencias_service import upsert as upsert_pendencia
+from modules.pendencias_service import upsert as upsert_pendencia, resolve_if_exists as resolve_pendencia
 from modules.historico_service import record as record_historico
 from modules.alerta_service import (
     is_aditivo_em_tratativa,
@@ -181,10 +181,15 @@ def process_job(job_id: str, job_data: dict):
             except Exception as e:
                 print(f"[Worker] Erro ao criar alerta: {e}")
 
-        # Se não houver itens pendentes REAIS, não cria pendência na lista principal
-        # Mesmo que haja itens em tratativa (avisos), eles só aparecerão se a pendência já existir ou for criada por outro motivo.
+        # Se não houver itens pendentes REAIS, tenta resolver pendência antiga se existir
         if not itens_pendentes:
             linhas_sem_pendencia += 1
+            try:
+                resolved = resolve_pendencia(db, fp)
+                if resolved:
+                    print(f"[Worker] Pendência resolvida automaticamente para {fp}")
+            except Exception as e:
+                print(f"[Worker] Erro ao resolver pendência: {e}")
             continue
 
         if not is_mapped and len(itens_pendentes) > 0:
