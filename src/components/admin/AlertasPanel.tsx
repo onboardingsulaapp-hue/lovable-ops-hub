@@ -16,15 +16,17 @@ export function AlertasPanel() {
     // Removemos orderBy do query para evitar exigência de índice composto no Firestore
     // Ordenaremos em memória para garantir que funcione sem configuração manual de índices
     const q = query(
-      collection(db, "alertas"),
-      where("resolved", "==", false)
+      collection(db, "alertas")
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map((d) => ({
+      const allDocs = snapshot.docs.map((d) => ({
         id: d.id,
         ...d.data(),
       })) as Alerta[];
+      
+      // Filtrar alertas não resolvidos em memória (mais robusto)
+      const docs = allDocs.filter(a => a.resolved === false || (a as any).resolved === undefined);
       
       // Ordenar por updated_at descendente em memória
       const sorted = docs.sort((a, b) => {

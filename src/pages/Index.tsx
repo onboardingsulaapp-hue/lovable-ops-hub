@@ -40,9 +40,13 @@ const Index = () => {
   // Monitorar Alertas ativos (Realtime)
   useEffect(() => {
     if (user?.role !== "admin") return;
-    const q = query(collection(db, "alertas"), where("resolved", "==", false));
+    const q = query(collection(db, "alertas"));
     const unsubscribeAlerts = onSnapshot(q, (snapshot) => {
-      setAlertCount(snapshot.size);
+      const activeAlerts = snapshot.docs.filter(d => {
+        const data = d.data();
+        return data.resolved === false || data.resolved === undefined;
+      });
+      setAlertCount(activeAlerts.length);
     });
     return () => unsubscribeAlerts();
   }, [user]);

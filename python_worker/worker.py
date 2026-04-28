@@ -35,7 +35,7 @@ from modules.pendencias_service import upsert as upsert_pendencia
 from modules.historico_service import record as record_historico
 from modules.alerta_service import (
     is_aditivo_em_tratativa,
-    upsert_aditivo_alert,
+    upsert_tratativa_alert,
     ADITIVO_PENDENCY_FIELDS,
 )
 
