@@ -482,12 +482,12 @@ const Index = () => {
       for (let i = 0; i < totalColab; i++) {
         const [colabKey, pends] = colabGroups[i];
         
-        // Localizar colaborador nos dados carregados
-        const target = users.find(u => u.id === colabKey || u.uid === colabKey || u.nome === colabKey);
+        // Localizar colaborador nos dados carregados (Usa allUsers para pegar pré-cadastros sem UID)
+        const target = allUsers.find(u => u.id === colabKey || u.uid === colabKey || u.nome === colabKey || u.email === colabKey);
         
         if (!target || !target.email) {
           metricas.sem_email++;
-          console.warn(`[EmailJS] Pulando ${colabKey}: E-mail não encontrado.`);
+          console.warn(`[EmailJS] Pulando ${colabKey}: E-mail não encontrado no mapeamento.`);
           continue;
         }
 
