@@ -482,8 +482,19 @@ const Index = () => {
       for (let i = 0; i < totalColab; i++) {
         const [colabKey, pends] = colabGroups[i];
         
-        // Localizar colaborador nos dados carregados (Usa allUsers para pegar pré-cadastros sem UID)
-        const target = allUsers.find(u => u.id === colabKey || u.uid === colabKey || u.nome === colabKey || u.email === colabKey);
+        // Normalização para busca robusta
+        const normalizeStr = (s: string) => s ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
+        const keyNorm = normalizeStr(colabKey);
+
+        // Localizar colaborador nos dados carregados (Busca robusta por ID, UID, Nome ou Email)
+        const target = allUsers.find(u => {
+          const uId = normalizeStr(u.id);
+          const uUid = normalizeStr(u.uid || "");
+          const uNome = normalizeStr(u.nome);
+          const uEmail = normalizeStr(u.email);
+          
+          return uId === keyNorm || uUid === keyNorm || uNome === keyNorm || uEmail === keyNorm;
+        });
         
         if (!target || !target.email) {
           metricas.sem_email++;
