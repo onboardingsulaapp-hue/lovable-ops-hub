@@ -463,10 +463,10 @@ const Index = () => {
       const pendsByColab: Record<string, Pendencia[]> = {};
       
       activePending.forEach(p => {
-        // Se o ID for 'sem_id' ou nulo, usamos o nome para agrupar e buscar o e-mail
-        const key = (p.colaborador_id && p.colaborador_id !== "sem_id" && p.colaborador_id !== "sem_id_fallback") 
-                    ? p.colaborador_id 
-                    : p.colaborador_nome || "sem_identificacao";
+        // Ignorar IDs genéricos que começam com 'sem_' (ex: sem_id, sem_responsavel)
+        const idInvalido = !p.colaborador_id || p.colaborador_id.startsWith("sem_");
+        
+        const key = !idInvalido ? p.colaborador_id : p.colaborador_nome || "sem_identificacao";
         
         if (!pendsByColab[key]) pendsByColab[key] = [];
         pendsByColab[key].push(p);
