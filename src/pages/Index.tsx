@@ -514,34 +514,65 @@ const Index = () => {
         pends.forEach(p => {
           const itens = Array.isArray(p.pendencias) ? p.pendencias.join(", ") : (p.texto_pendencia || "Verificar no sistema");
           rowsHtml += `
-            <tr>
-              <td style="padding: 8px; border: 1px solid #ddd; font-size: 13px;">${p.razao_social}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; font-size: 13px; text-align: center;">${p.tipo_implantacao || "Saúde"}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; font-size: 13px; text-align: center;">${p.data_vigencia}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; font-size: 13px; color: #d9534f;">${itens}</td>
+            <tr style="border-bottom: 1px solid #E2E8F0;">
+              <td style="padding: 12px; font-size: 13px; color: #1D2E5D;">${p.razao_social}</td>
+              <td style="padding: 12px; font-size: 13px; text-align: center; color: #1D2E5D;">${p.tipo_implantacao || "Saúde"}</td>
+              <td style="padding: 12px; font-size: 13px; text-align: center; color: #1D2E5D;">${p.data_vigencia}</td>
+              <td style="padding: 12px; font-size: 13px; color: #EF482B; font-weight: 500;">${itens}</td>
             </tr>
           `;
         });
 
         const my_html_content = `
-          <div style="font-family: Arial, sans-serif; color: #333;">
-            <p>Olá <strong>${target.nome}</strong>,</p>
-            <p>Você possui as seguintes pendências aguardando regularização:</p>
-            <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
-              <thead>
-                <tr style="background-color: #f2f2f2;">
-                  <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Empresa</th>
-                  <th style="padding: 10px; border: 1px solid #ddd;">Produto</th>
-                  <th style="padding: 10px; border: 1px solid #ddd;">Vigência</th>
-                  <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Pendências</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rowsHtml}
-              </tbody>
-            </table>
-            <p>Por favor, acesse o sistema para regularizar: <a href="${window.location.origin}">${window.location.origin}</a></p>
-            <p style="font-size: 12px; color: #777; margin-top: 20px;">Esta é uma mensagem automática do Sistema Onboarding Control Plan.</p>
+          <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1D2E5D; line-height: 1.6; max-width: 600px; margin: 0 auto; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;">
+            <div style="background-color: #1D2E5D; color: white; padding: 24px; text-align: center;">
+              <h2 style="margin: 0; font-size: 22px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Aviso de Pendências</h2>
+              <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.8;">Onboarding Control Plan | SulAmérica</p>
+            </div>
+            
+            <div style="padding: 32px; background-color: #ffffff;">
+              <p style="font-size: 16px; margin-bottom: 20px;">Olá <strong>${target.nome}</strong>,</p>
+              
+              <div style="background-color: #FFF5F5; border-left: 4px solid #EF482B; padding: 20px; margin: 24px 0; border-radius: 4px;">
+                <p style="margin: 0; color: #EF482B; font-weight: 800; font-size: 18px; display: flex; items-center: center;">
+                  ⏱️ PRAZO DE REGULARIZAÇÃO: ${prazo} DIAS
+                </p>
+                <p style="margin: 8px 0 0 0; font-size: 14px; color: #737D9A; font-weight: 500;">
+                  Solicitamos a atuação imediata nos casos abaixo para manter o cronograma de implantação.
+                </p>
+              </div>
+
+              <p style="font-size: 14px; color: #737D9A; margin-bottom: 16px;">
+                Identificamos <strong>${pends.length}</strong> pendência(s) aguardando sua regularização:
+              </p>
+              
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                <thead>
+                  <tr style="background-color: #F7F8FA;">
+                    <th style="padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Empresa</th>
+                    <th style="padding: 12px; text-align: center; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Produto</th>
+                    <th style="padding: 12px; text-align: center; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Vigência</th>
+                    <th style="padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Pendências</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml}
+                </tbody>
+              </table>
+
+              <div style="text-align: center; margin: 32px 0;">
+                <a href="${window.location.origin}" style="background-color: #1D2E5D; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; display: inline-block; transition: background-color 0.2s;">
+                  Acessar Sistema e Corrigir
+                </a>
+              </div>
+
+              <div style="border-top: 1px solid #E2E8F0; padding-top: 24px; margin-top: 32px; text-align: center;">
+                <p style="font-size: 12px; color: #737D9A; margin: 0;">
+                  Esta é uma mensagem automática. Por favor, não responda a este e-mail.<br>
+                  <strong>SulAmérica | Operações Corporativas</strong>
+                </p>
+              </div>
+            </div>
           </div>
         `;
 
@@ -549,8 +580,10 @@ const Index = () => {
           await emailjs.send(SERVICE_ID, TEMPLATE_ID, {
             to_name: target.nome,
             to_email: target.email,
+            subject: `Pendências pendentes - Prazo: ${prazo} dias`,
             my_html_content: my_html_content,
-            total_cases: pends.length
+            total_cases: pends.length,
+            prazo: prazo
           }, PUBLIC_KEY);
           
           metricas.enviados++;

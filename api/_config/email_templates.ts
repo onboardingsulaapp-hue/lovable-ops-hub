@@ -1,15 +1,15 @@
 export const EMAIL_TEMPLATES = {
-    "subject": "Pendências pendentes - prazo {prazo_dias} dias",
+    "subject": "Pendências pendentes - Prazo: {prazo_dias} dias",
     "body": [
         "Olá, {nome}.",
         "",
         "Identificamos {qtd} pendência(s) em aberto.",
-        "Prazo de regularização: {prazo_dias} dias.",
+        "PRAZO DE REGULARIZAÇÃO: {prazo_dias} dias.",
         "",
         "{lista_pendencias}",
         "",
         "Por favor, realize as correções e marque como Corrigida no sistema.",
         "Atenciosamente,",
-        "SulAmérica | Pendências"
+        "SulAmérica | Operações Corporativas"
     ]
 };
