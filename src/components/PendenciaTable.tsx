@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Check, RotateCcw, MessageSquare, ChevronDown, ChevronUp, Building2, FileSpreadsheet, Fingerprint, Edit2, MoreHorizontal, AlertTriangle } from "lucide-react";
+import { Check, CheckCircle2, RotateCcw, MessageSquare, ChevronDown, ChevronUp, Building2, FileSpreadsheet, Fingerprint, Edit2, MoreHorizontal, AlertTriangle, PauseCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ReabrirPendenciaDialog } from "./ReabrirPendenciaDialog";
 import { EditPendenciaDialog } from "./EditPendenciaDialog";
@@ -46,6 +46,16 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
       status: "OK",
     });
     toast.success("Correção validada!");
+  };
+
+  const handleToggleEspera = (id: string, currentStatus: string) => {
+    if (currentStatus === "Em Espera") {
+      onUpdatePendencia(id, { status: "Pendente" });
+      toast.success("Pendência retornada para status Pendente.");
+    } else {
+      onUpdatePendencia(id, { status: "Em Espera" });
+      toast.success("Pendência colocada Em Espera.");
+    }
   };
 
   const handleReabrirSubmit = (id: string, updates: Partial<Pendencia>, comentarioReabertura: string) => {
@@ -212,6 +222,18 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                                 <DropdownMenuItem onClick={() => setReabrirPendencia(p)}>
                                   <RotateCcw className="h-4 w-4 mr-2" />
                                   Reabrir
+                                </DropdownMenuItem>
+                              )}
+                              {userRole === "admin" && p.status !== "OK" && (
+                                <DropdownMenuItem onClick={() => handleValidar(p.id)}>
+                                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                                  Concluir / Validar
+                                </DropdownMenuItem>
+                              )}
+                              {userRole === "admin" && p.status !== "OK" && p.status !== "Ignorada" && (
+                                <DropdownMenuItem onClick={() => handleToggleEspera(p.id, p.status)}>
+                                  <PauseCircle className="h-4 w-4 mr-2" />
+                                  {p.status === "Em Espera" ? "Retirar de Espera" : "Colocar em Espera"}
                                 </DropdownMenuItem>
                               )}
                               {userRole === "admin" && (

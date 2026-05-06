@@ -1,4 +1,4 @@
-export type Status = "Pendente" | "Corrigida" | "OK" | "Ignorada";
+export type Status = "Pendente" | "Corrigida" | "OK" | "Ignorada" | "Em Espera";
 export type Prioridade = "Baixa" | "Média" | "Alta";
 export type Origem = "Automático" | "Manual";
 export type TipoImplantacao = "Saúde" | "Odonto";

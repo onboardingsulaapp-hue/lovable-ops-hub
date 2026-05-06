@@ -363,6 +363,7 @@ const Index = () => {
     if (updates.status === "Corrigida") actionStr = "corrigida";
     if (updates.status === "OK") actionStr = "validada";
     if (updates.status === "Pendente") actionStr = "reaberta";
+    if (updates.status === "Em Espera") actionStr = "em_espera";
     if (updates.prioridade && !updates.status) actionStr = "prioridade_alterada";
 
     executeUpdateAndHistory(id, updates, actionStr, updates.comentario_colaborador);
@@ -463,10 +464,19 @@ const Index = () => {
       const pendsByColab: Record<string, Pendencia[]> = {};
       
       activePending.forEach(p => {
-        // Ignorar IDs genéricos que começam com 'sem_' (ex: sem_id, sem_responsavel)
+        const nome = p.colaborador_nome || "";
+        const lowerNome = nome.toLowerCase();
+
+        // IGNORAR SOMENTE pendências marcadas como "Sem responsável (mapear consultor onboarding)"
+        if (lowerNome.includes("sem responsável") || lowerNome.includes("sem responsavel")) {
+          return;
+        }
+
+        // Ignorar IDs genéricos que começam com 'sem_' (ex: sem_id) para forçar o uso do Nome
         const idInvalido = !p.colaborador_id || p.colaborador_id.startsWith("sem_");
         
-        const key = !idInvalido ? p.colaborador_id : p.colaborador_nome || "sem_identificacao";
+        // Se o ID é inválido, usa o nome como chave. Senão, usa o ID.
+        const key = !idInvalido ? p.colaborador_id : (p.colaborador_nome || "sem_identificacao");
         
         if (!pendsByColab[key]) pendsByColab[key] = [];
         pendsByColab[key].push(p);

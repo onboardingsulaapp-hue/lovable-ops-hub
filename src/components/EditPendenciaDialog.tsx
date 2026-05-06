@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pendencia, Prioridade, UserRole } from "@/types/pendencia";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Trash2 } from "lucide-react";
+import { X, Plus, Trash2, CheckCircle2 } from "lucide-react";
 
 interface EditPendenciaDialogProps {
   pendencia: Pendencia | null;
@@ -56,6 +56,16 @@ export function EditPendenciaDialog({ pendencia, open, onOpenChange, onSubmit, o
   const handleSubmit = () => {
     if (!pendencia) return;
     const updates: Partial<Pendencia> = { texto_pendencia: texto, prioridade, erros };
+    if (userRole === "admin" && colaborador !== pendencia.colaborador_nome && colaborador) {
+      (updates as any).colaborador = colaborador;
+    }
+    onSubmit(pendencia.id, updates);
+    onOpenChange(false);
+  };
+
+  const handleConcluir = () => {
+    if (!pendencia) return;
+    const updates: Partial<Pendencia> = { texto_pendencia: texto, prioridade, erros, status: "OK" };
     if (userRole === "admin" && colaborador !== pendencia.colaborador_nome && colaborador) {
       (updates as any).colaborador = colaborador;
     }
@@ -172,7 +182,10 @@ export function EditPendenciaDialog({ pendencia, open, onOpenChange, onSubmit, o
                 Excluir
               </Button>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                <Button variant="outline" className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200" onClick={handleConcluir}>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Concluir
+                </Button>
                 <Button onClick={handleSubmit}>Salvar Alterações</Button>
               </div>
             </div>

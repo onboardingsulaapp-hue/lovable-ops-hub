@@ -14,7 +14,8 @@ export function StatusBadge({ status }: { status: Status }) {
         s === "pendente" && "status-pendente",
         s === "corrigida" && "status-corrigida",
         s === "ok" && "status-ok",
-        s === "ignorada" && "status-ignorada"
+        s === "ignorada" && "status-ignorada",
+        s === "em espera" && "bg-slate-100 text-slate-700 border-slate-300"
       )}
     >
       {label}

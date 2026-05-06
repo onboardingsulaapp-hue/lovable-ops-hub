@@ -28,6 +28,10 @@ export const RULES_VALIDACAO_V1 = {
         "Em Trativa"
     ],
     "required_fields": [
+        "Cód. da Empresa (Saúde/Odonto)",
+        "Cód. do Grupo/Apólice",
+        "Vidas Implantadas",
+        "Faturamento Emitido (R$ Mensal)",
         "Reunião Realizada",
         "Atuação do Migrasas ?",
         "Atuação do Nutea ?",
