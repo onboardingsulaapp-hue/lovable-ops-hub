@@ -13,7 +13,7 @@ export const config = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Envolver absolutamente tudo em um try/catch global para garantir retorno JSON
+  // Envolver absolutamente tudo em um try/catch global para garantir /** Onboarding CSV Sync API - Trigger Build */
   try {
     if (req.method !== 'POST') {
       return res.status(405).json({ 
