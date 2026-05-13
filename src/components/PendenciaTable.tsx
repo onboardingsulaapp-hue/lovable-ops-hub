@@ -109,7 +109,12 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
               )}
               {pendencias.map((p) => (
                 <React.Fragment key={p.id}>
-                  <TableRow className="hover:bg-brand-light/80 even:bg-brand-light/30 transition-colors border-b border-borderLight/50">
+                  <TableRow 
+                    className={cn(
+                      "hover:bg-brand-light/80 even:bg-brand-light/30 transition-colors border-b border-borderLight/50",
+                      p.origem === "Nova - Forms" && "border-l-[4px] border-l-purple-500 bg-purple-50/10"
+                    )}
+                  >
                     <TableCell>
                       <Button
                         variant="ghost"
@@ -274,8 +279,11 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                   </TableRow>
                   {expandedId === p.id && (
                     <TableRow key={`${p.id}-detail`}>
-                      <TableCell colSpan={colSpan} className="bg-brand-light/50 p-0 border-b border-borderLight">
-                        <div className="grid md:grid-cols-2 gap-8 p-8 border-t-2 border-brand-orange/20">
+                      <TableCell colSpan={colSpan} className={cn("p-0 border-b border-borderLight", p.origem === "Nova - Forms" ? "bg-purple-50/20" : "bg-brand-light/50")}>
+                        <div className={cn(
+                          "grid md:grid-cols-2 gap-8 p-8 border-t-2",
+                          p.origem === "Nova - Forms" ? "border-purple-400" : "border-brand-orange/20"
+                        )}>
                           <div className="space-y-6">
                             <h4 className="text-sm font-bold text-brand-blue uppercase tracking-widest border-b border-borderLight pb-2">Detalhes da Pendência</h4>
 
