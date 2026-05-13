@@ -117,9 +117,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               if (isYearValid) {
                 const razao = getValueByKeyword(["RAZAO SOCIAL", "CLIENTE", "EMPRESA"]) || "N/A";
                 const produto = getValueByKeyword(["PRODUTO"]) || "N/A";
-                let consultor = getValueByKeyword(["CONSULTOR", "REPRESENTANTE"]) || "Sem Consultor";
-                if (typeof consultor === 'string' && (consultor.trim() === "" || consultor.trim() === "-")) {
-                  consultor = "Sem Consultor";
+                
+                // Pega o consultor
+                let consultor = getValueByKeyword(["CONSULTOR", "REPRESENTANTE"]);
+                
+                // VALIDAR CONSULTOR: Se estiver vazio, for apenas um traço ou um ID técnico (como UIDs do Firebase), IGNORAR.
+                if (!consultor || typeof consultor !== 'string') continue;
+                
+                const consultorTrim = consultor.trim();
+                const isIdTecnico = consultorTrim.length > 20 && /[0-9]/.test(consultorTrim) && /[A-Z]/.test(consultorTrim);
+                
+                if (consultorTrim === "" || consultorTrim === "-" || isIdTecnico) {
+                  continue; // Não registrar se não tiver um nome válido de consultor
                 }
                 
                 const fp = `vol_${source}_${normalize(String(razao))}__${normalize(String(produto))}__${normalize(strVigencia)}`.substring(0, 240);
