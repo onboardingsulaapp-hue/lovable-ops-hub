@@ -1,6 +1,6 @@
 export type Status = "Pendente" | "Corrigida" | "OK" | "Ignorada" | "Em Espera";
 export type Prioridade = "Baixa" | "Média" | "Alta";
-export type Origem = "Automático" | "Manual";
+export type Origem = "Automático" | "Manual" | "Tradicional" | "Nova - Forms";
 export type TipoImplantacao = "Saúde" | "Odonto";
 export type UserRole = "admin" | "colaborador" | "socio";
 
@@ -62,7 +62,7 @@ export interface User {
 // JOB (Fila de Tarefas)
 // ========================
 export type JobStatus = "queued" | "running" | "success" | "failed";
-export type JobType = "sync_pendencias_csv";
+export type JobType = "sync_pendencias_csv" | "sync_nova_csv";
 
 export interface JobFileRef {
   path?: string;

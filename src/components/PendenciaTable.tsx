@@ -194,7 +194,17 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                         <PrioridadeBadge prioridade={p.prioridade} />
                       )}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{p.origem}</TableCell>
+                    <TableCell>
+                      {p.origem === "Nova - Forms" ? (
+                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 transition-colors text-[10px] px-2 font-bold">
+                          Forms
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground text-[10px] px-2">
+                          Tradicional
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         {userRole === "colaborador" && p.status === "Pendente" && (

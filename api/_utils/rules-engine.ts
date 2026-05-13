@@ -329,6 +329,7 @@ async function upsertTratativaAlert(
     mensagem,
     itens_em_tratativa: emTratativa,
     updated_at: now,
+    origem: tipoOrigem === "nova" ? "Nova - Forms" : "Tradicional",
   };
 
   if (!snap.exists) {

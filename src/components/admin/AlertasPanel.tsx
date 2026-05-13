@@ -83,6 +83,7 @@ export function AlertasPanel() {
               <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Razão Social</TableHead>
               <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Responsável</TableHead>
               <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Data/Hora</TableHead>
+              <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Origem</TableHead>
               <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Status</TableHead>
               <TableHead className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">Ações</TableHead>
             </TableRow>
@@ -107,6 +108,17 @@ export function AlertasPanel() {
                       {alerta.mensagem}
                     </span>
                   </div>
+                </TableCell>
+                <TableCell>
+                  {alerta.origem === "Nova - Forms" ? (
+                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 transition-colors text-[10px] px-2 font-bold whitespace-nowrap">
+                      Forms
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-muted-foreground text-[10px] px-2 whitespace-nowrap">
+                      Tradicional
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge variant="secondary" className="text-[10px] font-bold uppercase">

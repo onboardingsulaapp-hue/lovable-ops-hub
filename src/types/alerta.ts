@@ -14,4 +14,5 @@ export interface Alerta {
   updated_at: any;
   itens_em_tratativa?: string[];
   resolved: boolean;
+  origem?: string;
 }
