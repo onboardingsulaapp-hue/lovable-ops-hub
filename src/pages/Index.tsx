@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import emailjs from "@emailjs/browser";
 import UploadCsvPanel from "@/components/jobs/UploadCsvPanel";
+import UploadNovaCsvPanel from "@/components/jobs/UploadNovaCsvPanel";
 import { Pendencia, User, UserRole, TipoImplantacao, AdminLog } from "@/types/pendencia";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -815,15 +816,39 @@ const Index = () => {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="bg-white border-[#10b981] text-[#10b981] hover:bg-[#F0FDF4] font-bold py-5 px-6 shadow-none"
+                      >
+                        <RefreshCw className={`h-4 w-4 mr-2 leading-none`} />
+                        Sincronizar Nova (Forms)
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-xl bg-[#064e3b] text-white overflow-y-auto max-h-[85vh] border-none shadow-xl">
+                      <DialogHeader>
+                        <DialogTitle className="text-white">Central Google Forms (Nova Planilha)</DialogTitle>
+                        <DialogDescription className="text-emerald-200">
+                          Upload exclusivo para arquivos exportados do Google Forms.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="pt-4">
+                        <UploadNovaCsvPanel />
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         className="bg-white border-[#1D2E5D] text-[#1D2E5D] hover:bg-[#F7F8FA] font-bold py-5 px-6 shadow-none"
                       >
                         <RefreshCw className={`h-4 w-4 mr-2 leading-none`} />
-                        Sincronizar CSV
+                        Sincronizar Tradicional
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-xl bg-[#0f172a] text-white overflow-y-auto max-h-[85vh] border-none shadow-xl">
                       <DialogHeader>
-                        <DialogTitle className="text-white">Central de Sincronização CSV</DialogTitle>
+                        <DialogTitle className="text-white">Central Planilha Tradicional</DialogTitle>
                         <DialogDescription className="text-slate-400">
                           Escolha um arquivo Excel/CSV no formato padrão para atualizar a base de pendências.
                         </DialogDescription>

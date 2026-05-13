@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import { collection, doc, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Job } from "@/types/pendencia";
@@ -7,8 +7,8 @@ import { toast } from "sonner";
 import { upload } from "@vercel/blob/client";
 
 const REQUIRED_HEADER_FIELDS = [
-  "Razão Social do Cliente",
-  "Produto",
+  "Razão Social do cliente",
+  "PRODUTO",
   "Status da Empresa",
   "Inicio da Vigência de Contrato",
   "CONSULTOR DE ONBOARDING",
@@ -29,7 +29,7 @@ function parseCsvHeader(text: string): ParsedCsvInfo | null {
   let headerRowIndex = -1;
 
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim().startsWith(HEADER_STARTS_WITH)) {
+    if (lines[i].trim().includes(HEADER_STARTS_WITH)) {
       headerRowIndex = i;
       break;
     }
@@ -40,7 +40,7 @@ function parseCsvHeader(text: string): ParsedCsvInfo | null {
   const columns = lines[headerRowIndex].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
   const dataRows = lines.slice(headerRowIndex + 1).filter((l) => l.trim() !== "");
   const missingColumns = REQUIRED_HEADER_FIELDS.filter(
-    (req) => !columns.some((col) => col.toLowerCase() === req.toLowerCase())
+    (req) => !columns.some((col) => col.toLowerCase().includes(req.toLowerCase()))
   );
 
   return {
@@ -71,7 +71,7 @@ function statusColor(status: string) {
   return map[status] ?? "#6b7280";
 }
 
-export default function UploadCsvPanel() {
+export default function UploadNovaCsvPanel() {
   const { profile: user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [csvInfo, setCsvInfo] = useState<ParsedCsvInfo | null>(null);
@@ -86,7 +86,7 @@ export default function UploadCsvPanel() {
 
     const q = query(
       collection(db, "jobs"),
-      where("tipo", "==", "sync_pendencias_csv"),
+      where("tipo", "==", "sync_nova_csv"),
       orderBy("requested_at", "desc")
     );
 
@@ -122,7 +122,7 @@ export default function UploadCsvPanel() {
       const text = ev.target?.result as string;
       const info = parseCsvHeader(text);
       if (!info) {
-        setParseError(`Cabeçalho inválido: não foi encontrada a linha iniciando com "${HEADER_STARTS_WITH}". Verifique o arquivo.`);
+        setParseError(`Cabeçalho inválido: não foi encontrada a coluna "${HEADER_STARTS_WITH}". Verifique se este é o arquivo correto do Google Forms.`);
         return;
       }
       setCsvInfo(info);
@@ -138,7 +138,7 @@ export default function UploadCsvPanel() {
     formData.append("file", selectedFile);
 
     try {
-      const response = await fetch("/api/sync_csv", {
+      const response = await fetch("/api/sync_nova", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${idToken}`,
@@ -166,7 +166,7 @@ export default function UploadCsvPanel() {
       const newBlob = await upload(selectedFile.name, selectedFile, {
         access: "public",
         handleUploadUrl: "/api/blob/upload-csv",
-        clientPayload: JSON.stringify({ idToken }),
+        clientPayload: JSON.stringify({ idToken, tipoSync: 'nova' }), // Passamos o tipo para o blob handler saber (se necessário)
         onUploadProgress: (progressEvent) => {
           setUploadProgress(progressEvent.percentage);
         },
@@ -191,18 +191,16 @@ export default function UploadCsvPanel() {
     setUploadProgress(0);
 
     try {
-      // 1. Obter ID Token do Firebase
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) {
         throw new Error("Sessão expirada. Faça login novamente.");
       }
 
-      // 2. Escolher caminho baseado no tamanho
       if (selectedFile.size <= MAX_DIRECT_UPLOAD_SIZE) {
-        console.log("Using direct sync path (<= 4MB)");
+        console.log("Using direct sync path (nova) (<= 4MB)");
         await handleDirectUpload(idToken);
       } else {
-        console.log("Using Blob sync path (> 4MB)");
+        console.log("Using Blob sync path (nova) (> 4MB)");
         await handleBlobUpload(idToken);
       }
 
@@ -220,20 +218,22 @@ export default function UploadCsvPanel() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {/* Upload Section */}
       <div
         style={{
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.1)",
+          background: "rgba(16,185,129,0.04)",
+          border: "1px solid rgba(16,185,129,0.2)",
           borderRadius: "12px",
           padding: "24px",
         }}
       >
-        <h3 style={{ color: "#f1f5f9", marginBottom: "8px", fontSize: "16px", fontWeight: 600 }}>
-          📂 Sincronizar Pendências via CSV (Vercel Node)
-        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <h3 style={{ color: "#f1f5f9", fontSize: "16px", fontWeight: 600 }}>
+              📝 Sincronizar Planilha Nova (Google Forms)
+            </h3>
+            <span style={{ fontSize: '10px', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: '4px' }}>EXCLUSIVO</span>
+        </div>
         <p style={{ color: "#94a3b8", fontSize: "13px", marginBottom: "20px" }}>
-          Upload direto para arquivos até 4MB. Arquivos maiores usam Vercel Blob e processamento assíncrono.
+          Use este painel apenas para arquivos exportados do Google Forms.
         </p>
 
         <input
@@ -242,24 +242,24 @@ export default function UploadCsvPanel() {
           accept=".csv"
           onChange={handleFileChange}
           style={{ display: "none" }}
-          id="csv-upload-input"
+          id="csv-nova-upload-input"
         />
         <label
-          htmlFor="csv-upload-input"
+          htmlFor="csv-nova-upload-input"
           style={{
             display: "inline-block",
             padding: "10px 20px",
-            background: "rgba(99,102,241,0.15)",
-            border: "1px solid rgba(99,102,241,0.4)",
+            background: "rgba(16,185,129,0.15)",
+            border: "1px solid rgba(16,185,129,0.4)",
             borderRadius: "8px",
-            color: "#818cf8",
+            color: "#6ee7b7",
             cursor: "pointer",
             fontSize: "14px",
             fontWeight: 500,
             transition: "all 0.2s",
           }}
         >
-          Selecionar arquivo .csv
+          Selecionar arquivo .csv (Google Forms)
         </label>
 
         {parseError && (
@@ -289,14 +289,12 @@ export default function UploadCsvPanel() {
             }}
           >
             <p style={{ color: "#6ee7b7", fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>
-              ✅ Arquivo válido — Preview
+              ✅ Arquivo Nova Planilha Detectado
             </p>
             <div style={{ color: "#94a3b8", fontSize: "13px", display: "flex", flexDirection: "column", gap: "4px" }}>
               <span>📄 Arquivo: <strong style={{ color: "#e2e8f0" }}>{selectedFile?.name}</strong></span>
-              <span>⚖️ Tamanho: <strong style={{ color: "#e2e8f0" }}>{(selectedFile!.size / 1024).toFixed(1)} KB</strong></span>
-              <span>📍 Cabeçalho encontrado na linha: <strong style={{ color: "#e2e8f0" }}>{csvInfo.headerRow}</strong></span>
+              <span>📍 Linha do cabeçalho: <strong style={{ color: "#e2e8f0" }}>{csvInfo.headerRow}</strong></span>
               <span>📊 Linhas de dados: <strong style={{ color: "#e2e8f0" }}>{csvInfo.totalDataRows}</strong></span>
-              <span>⚡ Modo: <strong style={{ color: "#e2e8f0" }}>{selectedFile!.size <= MAX_DIRECT_UPLOAD_SIZE ? "Síncrono (Direto)" : "Assíncrono (Blob)"}</strong></span>
             </div>
 
             {csvInfo.missingColumns.length > 0 && (
@@ -311,7 +309,7 @@ export default function UploadCsvPanel() {
                   fontSize: "12px",
                 }}
               >
-                ❌ Colunas obrigatórias ausentes:
+                ❌ Colunas obrigatórias ausentes para o modo Nova:
                 <ul style={{ margin: "6px 0 0 16px", paddingLeft: 0 }}>
                   {csvInfo.missingColumns.map((col) => (
                     <li key={col}>{col}</li>
@@ -327,7 +325,7 @@ export default function UploadCsvPanel() {
                 style={{
                   marginTop: "16px",
                   padding: "10px 24px",
-                  background: uploading ? "rgba(99,102,241,0.4)" : "rgba(99,102,241,0.8)",
+                  background: uploading ? "rgba(16,185,129,0.4)" : "rgba(16,185,129,0.8)",
                   border: "none",
                   borderRadius: "8px",
                   color: "#fff",
@@ -337,14 +335,14 @@ export default function UploadCsvPanel() {
                   transition: "all 0.2s",
                 }}
               >
-                {uploading ? `🚀 Processando… ${uploadProgress > 0 ? `${uploadProgress}%` : ""}` : "🚀 Iniciar Sincronização"}
+                {uploading ? `🚀 Sincronizando Nova… ${uploadProgress > 0 ? `${uploadProgress}%` : ""}` : "🚀 Iniciar Sincronização Nova"}
               </button>
             )}
           </div>
         )}
       </div>
 
-      {/* Recent Jobs Section */}
+      {/* Recent Nova Jobs */}
       <div
         style={{
           background: "rgba(255,255,255,0.04)",
@@ -354,11 +352,11 @@ export default function UploadCsvPanel() {
         }}
       >
         <h3 style={{ color: "#f1f5f9", marginBottom: "16px", fontSize: "16px", fontWeight: 600 }}>
-          🕒 Execuções Recentes
+          🕒 Histórico Planilha Nova
         </h3>
 
         {recentJobs.length === 0 ? (
-          <p style={{ color: "#64748b", fontSize: "13px" }}>Nenhum job de sincronização encontrado.</p>
+          <p style={{ color: "#64748b", fontSize: "13px" }}>Nenhum job de sincronização nova encontrado.</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {recentJobs.map((job) => (
@@ -383,7 +381,7 @@ export default function UploadCsvPanel() {
 
                 {job.file && (
                   <p style={{ color: "#64748b", fontSize: "12px", marginTop: "4px" }}>
-                    📄 {job.file.name || job.file.pathname} ({Math.round(job.file.size / 1024)} KB)
+                    📄 {job.file.name || job.file.pathname}
                   </p>
                 )}
 
@@ -391,20 +389,12 @@ export default function UploadCsvPanel() {
                   <div style={{ marginTop: "8px", color: "#6ee7b7", fontSize: "12px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
                     <span>Total: {job.result.linhas_total}</span>
                     <span>•</span>
-                    <span>Ignoradas: {job.result.ignoradas_por_status}</span>
-                    <span>•</span>
                     <span>Criadas: {job.result.criadas}</span>
                     <span>•</span>
                     <span>Atualizadas: {job.result.atualizadas}</span>
                   </div>
                 )}
-
-                {job.status === "failed" && job.error && (
-                  <p style={{ color: "#fca5a5", fontSize: "12px", marginTop: "6px" }}>
-                    ❌ {job.error}
-                  </p>
-                )}
-
+                
                 <p style={{ color: "#334155", fontSize: "10px", marginTop: "4px" }}>ID: {job.id}</p>
               </div>
             ))}
