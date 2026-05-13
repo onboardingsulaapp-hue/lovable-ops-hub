@@ -28,8 +28,8 @@ const SPREADSHEET_CONFIGS = {
     requiredFields: [
       "Razão Social",
       "PRODUTO",
-      "STATUS DA IMPLANTAÇÃO (ONBOARDING)",
-      "DATA DE VIGÊNCIA"
+      "Status da Empresa",
+      "Inicio da Vigência de Contrato"
     ]
   }
 };
