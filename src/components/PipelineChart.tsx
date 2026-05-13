@@ -49,7 +49,7 @@ export function PipelineChart({ data }: PipelineChartProps) {
       // Match status
       let key = "";
       if (statusNorm.includes("OPERACAO")) key = "EM CURSO - OPERACAO";
-      else if (statusNorm.includes("CLIENTE") || statusNorm.includes("CORRETORA")) key = "EM CURSO - CLIENTE / CORRETORA";
+      else if (statusNorm.includes("CLIENTE") || statusNorm.includes("CORRETORA") || statusNorm.includes("CORRETORRA")) key = "EM CURSO - CLIENTE / CORRETORA";
       else if (statusNorm.includes("FUTURA")) key = "IMPLANTACAO FUTURA";
 
       if (key) {

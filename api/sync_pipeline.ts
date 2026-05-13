@@ -73,20 +73,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               const rawStatus = row['Status da Empresa'] || row['Status de Implantação'] || row['Status'] || '';
               const normalizedStatus = normalize(rawStatus);
 
-              // 1. Validar Status
-              const isAllowedStatus = ALLOWED_STATUSES.some(s => 
-                normalizedStatus === s || 
-                normalizedStatus.includes(s) || 
-                s.includes(normalizedStatus)
-              );
+              // 1. Validar Status (Busca por palavras-chave para ser ultra-flexível)
+              const isOperacao = normalizedStatus.includes("OPERACAO");
+              const isCliente = normalizedStatus.includes("CLIENTE") || normalizedStatus.includes("CORRETORA") || normalizedStatus.includes("CORRETORRA");
+              const isFutura = normalizedStatus.includes("FUTURA");
               
-              if (!isAllowedStatus) continue;
+              if (!isOperacao && !isCliente && !isFutura) continue;
 
-              // 2. Validar Data (Apenas 2026 em diante, sem limite final)
+              // 2. Validar Data (Apenas 2026 em diante)
               const rawVigencia = row['Inicio da Vigência de Contrato'] || row['Vigência'] || '';
               let isYearValid = true;
               if (rawVigencia) {
-                // Tenta extrair o ano (formatos DD/MM/YYYY ou YYYY-MM-DD)
                 const yearMatch = rawVigencia.match(/\d{4}/);
                 if (yearMatch) {
                   const year = parseInt(yearMatch[0]);
@@ -94,12 +91,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
               }
 
-              if (isAllowedStatus && isYearValid) {
+              if (isYearValid) {
                 const razao = row['Razão Social do Cliente'] || row['Cliente'] || 'N/A';
                 const produto = row['Produto'] || 'N/A';
                 const consultor = row['CONSULTOR DE ONBOARDING'] || row['Consultor'] || 'Sem Consultor';
                 
-                const fp = `vol_${normalize(razao)}__${normalize(produto)}`.substring(0, 240);
+                // Fingerprint mais robusto para evitar que uma empresa sobrescreva outra se tiver mais de um processo
+                const fp = `vol_${source}_${normalize(razao)}__${normalize(produto)}__${normalize(rawVigencia)}`.substring(0, 240);
                 seenFingerprints.add(fp);
 
                 const docRef = collection.doc(fp);
