@@ -33,7 +33,7 @@ export default function PipelineDashboard() {
     return () => unsub();
   }, [user, navigate]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, source: 'tradicional' | 'nova') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -43,7 +43,7 @@ export default function PipelineDashboard() {
     }
 
     setUploading(true);
-    const toastId = toast.loading("Sincronizando Volumetria...");
+    const toastId = toast.loading(`Sincronizando Volumetria (${source === 'nova' ? 'Forms' : 'Tradicional'})...`);
 
     try {
       const idToken = await auth.currentUser?.getIdToken();
@@ -52,7 +52,7 @@ export default function PipelineDashboard() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch("/api/sync_pipeline", {
+      const response = await fetch(`/api/sync_pipeline?source=${source}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${idToken}` },
         body: formData,
@@ -64,7 +64,7 @@ export default function PipelineDashboard() {
       }
 
       const result = await response.json();
-      toast.success(`Pipeline atualizado! Processados: ${result.processed}, Removidos: ${result.deleted}`, { id: toastId });
+      toast.success(`Pipeline ${source} atualizado! Processados: ${result.processed}, Removidos: ${result.deleted}`, { id: toastId });
     } catch (err: any) {
       console.error("Upload Error:", err);
       toast.error(err.message, { id: toastId });
@@ -105,20 +105,45 @@ export default function PipelineDashboard() {
               ref={fileInputRef}
               type="file"
               accept=".csv"
-              onChange={handleFileUpload}
+              onChange={(e) => {
+                const target = e.target as any;
+                const source = target.dataset.source;
+                handleFileUpload(e, source);
+              }}
               className="hidden"
               id="pipeline-csv-input"
             />
-            <Button
-              asChild
-              disabled={uploading}
-              className="bg-brand-blue hover:bg-brand-blue/90 text-white font-bold py-5 px-6 shadow-md transition-all active:scale-95"
-            >
-              <label htmlFor="pipeline-csv-input" className="cursor-pointer flex items-center gap-2">
-                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                {uploading ? "Sincronizando..." : "Sincronizar CSV Diário"}
-              </label>
-            </Button>
+            
+            <div className="flex gap-2">
+              <Button
+                disabled={uploading}
+                variant="outline"
+                onClick={() => {
+                  if (fileInputRef.current) {
+                    fileInputRef.current.dataset.source = 'tradicional';
+                    fileInputRef.current.click();
+                  }
+                }}
+                className="border-brand-blue text-brand-blue hover:bg-brand-light font-bold"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Sincronizar Tradicional
+              </Button>
+
+              <Button
+                disabled={uploading}
+                onClick={() => {
+                  if (fileInputRef.current) {
+                    fileInputRef.current.dataset.source = 'nova';
+                    fileInputRef.current.click();
+                  }
+                }}
+                className="bg-brand-blue hover:bg-brand-blue/90 text-white font-bold"
+              >
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                Sincronizar Nova (Forms)
+              </Button>
+            </div>
           </div>
         </div>
       </div>

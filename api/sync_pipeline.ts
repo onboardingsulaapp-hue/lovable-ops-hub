@@ -61,6 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               from_line: fromLine
             });
 
+            const source = req.query.source || 'tradicional'; // 'tradicional' ou 'nova'
             const seenFingerprints = new Set<string>();
             const batch = db.batch();
             const collection = db.collection('pipeline_volumetria');
@@ -69,18 +70,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             for (const rawRow of records) {
               const row = cleanRow(rawRow);
-              const rawStatus = row['Status da Empresa'] || '';
+              // Tentar pegar o status de várias colunas possíveis
+              const rawStatus = row['Status da Empresa'] || row['Status de Implantação'] || row['Status'] || '';
               const normalizedStatus = normalize(rawStatus);
 
-              // Filtrar apenas os status permitidos (Loose matching para lidar com Corretora/Corretorra)
-              const isAllowed = ALLOWED_STATUSES.some(s => normalizedStatus.includes(s) || s.includes(normalizedStatus));
+              // Filtrar status permitidos
+              const isAllowed = ALLOWED_STATUSES.some(s => 
+                normalizedStatus === s || 
+                normalizedStatus.includes(s) || 
+                s.includes(normalizedStatus)
+              );
               
               if (isAllowed) {
-                const razao = row['Razão Social do Cliente'] || 'N/A';
+                const razao = row['Razão Social do Cliente'] || row['Cliente'] || 'N/A';
                 const produto = row['Produto'] || 'N/A';
-                const consultor = row['CONSULTOR DE ONBOARDING'] || 'Sem Consultor';
+                const consultor = row['CONSULTOR DE ONBOARDING'] || row['Consultor'] || 'Sem Consultor';
                 
-                // Fingerprint único por Empresa + Produto
                 const fp = `vol_${normalize(razao)}__${normalize(produto)}`.substring(0, 240);
                 seenFingerprints.add(fp);
 
@@ -91,6 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   consultor: consultor,
                   status_pipeline: rawStatus,
                   status_normalizado: normalizedStatus,
+                  origem: source,
                   updated_at: FieldValue.serverTimestamp(),
                   last_sync_by: uid
                 }, { merge: true });
@@ -99,13 +105,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               }
             }
 
-            // Executar batch de gravação
             if (countProcessed > 0) {
               await batch.commit();
             }
 
-            // Lógica de Snapshot: Remover o que não está no CSV
-            const allDocs = await collection.get();
+            // Snapshot Seletivo: Remover apenas o que for da mesma ORIGEM e não estiver no CSV
+            const allDocs = await collection.where('origem', '==', source).get();
             const deleteBatch = db.batch();
             let countDeleted = 0;
 
