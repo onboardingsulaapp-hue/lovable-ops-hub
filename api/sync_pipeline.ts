@@ -13,9 +13,9 @@ export const config = {
 };
 
 /**
- * Normaliza strings para comparação robusta
+ * Normaliza strings para comparação robusta e caminhos de documentos seguros
  */
-const normalize = (s: string) => s ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
+const normalize = (s: string) => s ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim().replace(/\//g, "_") : "";
 
 const ALLOWED_STATUSES = [
   "EM CURSO - OPERACAO",
