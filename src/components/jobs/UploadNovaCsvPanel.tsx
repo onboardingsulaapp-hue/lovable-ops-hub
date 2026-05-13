@@ -7,8 +7,8 @@ import { toast } from "sonner";
 import { upload } from "@vercel/blob/client";
 
 const REQUIRED_HEADER_FIELDS = [
-  "Razão Social do cliente",
-  "PRODUTO",
+  "Razão Social do Cliente",
+  "Produto",
   "Status da Empresa",
   "Inicio da Vigência de Contrato",
   "CONSULTOR DE ONBOARDING",
@@ -25,28 +25,53 @@ interface ParsedCsvInfo {
 }
 
 function parseCsvHeader(text: string): ParsedCsvInfo | null {
-  const lines = text.split(/\r?\n/);
-  let headerRowIndex = -1;
+  const marker = HEADER_STARTS_WITH;
+  const markerIndex = text.indexOf(marker);
+  if (markerIndex === -1) return null;
 
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim().includes(HEADER_STARTS_WITH)) {
-      headerRowIndex = i;
+  // Scanner de cabeçalho resiliente
+  const sub = text.substring(markerIndex);
+  const columns: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  let charIndex = 0;
+
+  for (; charIndex < sub.length; charIndex++) {
+    const char = sub[charIndex];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      columns.push(current.trim().replace(/^"|"$/g, "").replace(/\n/g, " "));
+      current = "";
+    } else if (char === '\n' && !inQuotes) {
+      columns.push(current.trim().replace(/^"|"$/g, "").replace(/\n/g, " "));
+      current = "";
       break;
+    } else {
+      current += char;
     }
   }
+  
+  if (current) {
+    columns.push(current.trim().replace(/^"|"$/g, "").replace(/\n/g, " "));
+  }
 
-  if (headerRowIndex === -1) return null;
+  const cleanedColumns = columns;
+  
+  // O resto do arquivo são os dados
+  const dataPart = sub.substring(charIndex + 1);
+  const dataRows = dataPart.split(/\r?\n/).filter(l => l.trim().length > 5);
 
-  const columns = lines[headerRowIndex].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
-  const dataRows = lines.slice(headerRowIndex + 1).filter((l) => l.trim() !== "");
   const missingColumns = REQUIRED_HEADER_FIELDS.filter(
-    (req) => !columns.some((col) => col.toLowerCase().includes(req.toLowerCase()))
+    (req) => !cleanedColumns.some((col) => col.toLowerCase().includes(req.toLowerCase()))
   );
 
+  const linesBefore = text.substring(0, markerIndex).split('\n').length;
+
   return {
-    headerRow: headerRowIndex + 1,
+    headerRow: linesBefore,
     totalDataRows: dataRows.length,
-    columns,
+    columns: cleanedColumns,
     missingColumns,
   };
 }
