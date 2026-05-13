@@ -1,0 +1,146 @@
+import { VercelRequest, VercelResponse } from '@vercel/node';
+import { getFirestore, verifyFirebaseIdToken } from './_utils/firebase-admin.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import { cleanRow } from './_utils/rules-engine.js';
+import { getCsvHeaderOffset } from './_utils/csv-helper.js';
+import { parse } from 'csv-parse/sync';
+import Busboy from 'busboy';
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+/**
+ * Normaliza strings para comparação robusta
+ */
+const normalize = (s: string) => s ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
+
+const ALLOWED_STATUSES = [
+  "EM CURSO - OPERACAO",
+  "EM CURSO - CLIENTE / CORRETORA",
+  "IMPLANTACAO FUTURA"
+];
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    if (req.method !== 'POST') {
+      return res.status(405).json({ ok: false, error: 'Método não permitido' });
+    }
+
+    // 1. Validar Autenticação
+    let uid: string;
+    try {
+        uid = await verifyFirebaseIdToken(req.headers.authorization);
+    } catch (error: any) {
+        return res.status(401).json({ ok: false, error: 'Não autorizado' });
+    }
+
+    const db = getFirestore();
+    const busboy = Busboy({ headers: req.headers });
+
+    return new Promise((resolve) => {
+      busboy.on('file', (name, file) => {
+        const chunks: any[] = [];
+        file.on('data', (chunk) => chunks.push(chunk));
+        
+        file.on('end', async () => {
+          try {
+            const buffer = Buffer.concat(chunks);
+            let csvText = buffer.toString('utf-8');
+            if (csvText.includes('\uFFFD')) csvText = buffer.toString('latin1');
+
+            const fromLine = await getCsvHeaderOffset(csvText);
+            const records = parse(csvText, {
+              columns: true,
+              skip_empty_lines: true,
+              trim: true,
+              bom: true,
+              relax_column_count: true,
+              from_line: fromLine
+            });
+
+            const seenFingerprints = new Set<string>();
+            const batch = db.batch();
+            const collection = db.collection('pipeline_volumetria');
+            
+            let countProcessed = 0;
+
+            for (const rawRow of records) {
+              const row = cleanRow(rawRow);
+              const rawStatus = row['Status da Empresa'] || '';
+              const normalizedStatus = normalize(rawStatus);
+
+              // Filtrar apenas os status permitidos (Loose matching para lidar com Corretora/Corretorra)
+              const isAllowed = ALLOWED_STATUSES.some(s => normalizedStatus.includes(s) || s.includes(normalizedStatus));
+              
+              if (isAllowed) {
+                const razao = row['Razão Social do Cliente'] || 'N/A';
+                const produto = row['Produto'] || 'N/A';
+                const consultor = row['CONSULTOR DE ONBOARDING'] || 'Sem Consultor';
+                
+                // Fingerprint único por Empresa + Produto
+                const fp = `vol_${normalize(razao)}__${normalize(produto)}`.substring(0, 240);
+                seenFingerprints.add(fp);
+
+                const docRef = collection.doc(fp);
+                batch.set(docRef, {
+                  razao_social: razao,
+                  produto: produto,
+                  consultor: consultor,
+                  status_pipeline: rawStatus,
+                  status_normalizado: normalizedStatus,
+                  updated_at: FieldValue.serverTimestamp(),
+                  last_sync_by: uid
+                }, { merge: true });
+
+                countProcessed++;
+              }
+            }
+
+            // Executar batch de gravação
+            if (countProcessed > 0) {
+              await batch.commit();
+            }
+
+            // Lógica de Snapshot: Remover o que não está no CSV
+            const allDocs = await collection.get();
+            const deleteBatch = db.batch();
+            let countDeleted = 0;
+
+            allDocs.forEach(doc => {
+              if (!seenFingerprints.has(doc.id)) {
+                deleteBatch.delete(doc.ref);
+                countDeleted++;
+              }
+            });
+
+            if (countDeleted > 0) {
+              await deleteBatch.commit();
+            }
+
+            res.status(200).json({ 
+              ok: true, 
+              processed: countProcessed, 
+              deleted: countDeleted,
+              total_active: seenFingerprints.size
+            });
+            resolve(true);
+
+          } catch (err: any) {
+            console.error('Pipeline Sync Error:', err);
+            res.status(500).json({ ok: false, error: err.message });
+            resolve(false);
+          }
+        });
+      });
+
+      req.pipe(busboy);
+    });
+
+  } catch (err: any) {
+    console.error('Global Error:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}

@@ -13,7 +13,8 @@ import { CollaboratorManagerDialog } from "@/components/CollaboratorManagerDialo
 import { AdminLogsPanel } from "@/components/AdminLogsPanel";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Shield, UserCheck, RefreshCw, Check, LineChart, BriefcaseBusiness, Users as UsersIcon, Clock, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
+import { LogOut, Shield, UserCheck, RefreshCw, Check, LineChart, BriefcaseBusiness, Users as UsersIcon, Clock, AlertCircle, CheckCircle2, ShieldAlert, FileBarChart } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { SocioCharts } from "@/components/socio/SocioCharts";
 import { SendEmailDialog } from "@/components/socio/SendEmailDialog";
@@ -29,6 +30,7 @@ const emptyFilters: Filters = { colaborador_id: "", status: "", prioridade: "", 
 
 const Index = () => {
   const { profile: user, loading, logout } = useAuth();
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [preUsers, setPreUsers] = useState<User[]>([]);
   const [pendencias, setPendencias] = useState<Pendencia[]>([]);
@@ -762,15 +764,28 @@ const Index = () => {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {user.role === "admin" && (
+            {(user.role === "admin" || user.role === "socio") && (
               <div className="flex items-center gap-2 sm:gap-3">
-                <AdminLogsPanel logs={adminLogs} />
-                <CollaboratorManagerDialog
-                  users={allUsers}
-                  onAdd={handleAddUser}
-                  onEdit={handleEditUser}
-                  onDelete={handleDeleteUser}
-                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/pipeline")}
+                  className="bg-white border-brand-blue text-brand-blue hover:bg-brand-light font-bold hidden md:flex items-center gap-2"
+                >
+                  <FileBarChart className="h-4 w-4" />
+                  Volumetria
+                </Button>
+                {user.role === "admin" && (
+                  <>
+                    <AdminLogsPanel logs={adminLogs} />
+                    <CollaboratorManagerDialog
+                      users={allUsers}
+                      onAdd={handleAddUser}
+                      onEdit={handleEditUser}
+                      onDelete={handleDeleteUser}
+                    />
+                  </>
+                )}
               </div>
             )}
             <div className="h-6 w-px bg-borderLight mx-1 hidden sm:block"></div>
