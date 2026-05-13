@@ -6,15 +6,34 @@ import { Job } from "@/types/pendencia";
 import { toast } from "sonner";
 import { upload } from "@vercel/blob/client";
 
-const REQUIRED_HEADER_FIELDS = [
-  "Razão Social do Cliente",
-  "Produto",
-  "Status da Empresa",
-  "Inicio da Vigência de Contrato",
-  "CONSULTOR DE ONBOARDING",
-];
+const SPREADSHEET_CONFIGS = {
+  antiga: {
+    label: "Tradicional (Excel)",
+    endpoint: "/api/sync_csv",
+    jobType: "sync_pendencias_csv",
+    headerStartsWith: "Data do Envio", // Ou outro prefixo único da antiga
+    requiredFields: [
+      "Razão Social do Cliente",
+      "Produto",
+      "Status da Empresa",
+      "Inicio da Vigência de Contrato",
+      "CONSULTOR DE ONBOARDING"
+    ]
+  },
+  nova: {
+    label: "Nova (Google Forms)",
+    endpoint: "/api/sync_nova",
+    jobType: "sync_nova_csv",
+    headerStartsWith: "Carimbo de data/hora",
+    requiredFields: [
+      "Razão Social",
+      "PRODUTO",
+      "STATUS DA IMPLANTAÇÃO (ONBOARDING)",
+      "DATA DE VIGÊNCIA"
+    ]
+  }
+};
 
-const HEADER_STARTS_WITH = "Carimbo de data/hora";
 const MAX_DIRECT_UPLOAD_SIZE = 4 * 1024 * 1024; // 4MB
 
 interface ParsedCsvInfo {
@@ -24,12 +43,15 @@ interface ParsedCsvInfo {
   missingColumns: string[];
 }
 
-function parseCsvHeader(text: string): ParsedCsvInfo | null {
+function parseCsvHeader(text: string, type: 'antiga' | 'nova'): ParsedCsvInfo | null {
+  const config = SPREADSHEET_CONFIGS[type];
   const lines = text.split(/\r?\n/);
   let headerRowIndex = -1;
 
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim().startsWith(HEADER_STARTS_WITH)) {
+    const line = lines[i].trim();
+    // Verifica se a linha contém o marcador de cabeçalho
+    if (line.includes(config.headerStartsWith) || (type === 'antiga' && line.includes("Razão Social"))) {
       headerRowIndex = i;
       break;
     }
@@ -39,8 +61,8 @@ function parseCsvHeader(text: string): ParsedCsvInfo | null {
 
   const columns = lines[headerRowIndex].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
   const dataRows = lines.slice(headerRowIndex + 1).filter((l) => l.trim() !== "");
-  const missingColumns = REQUIRED_HEADER_FIELDS.filter(
-    (req) => !columns.some((col) => col.toLowerCase() === req.toLowerCase())
+  const missingColumns = config.requiredFields.filter(
+    (req) => !columns.some((col) => col.toLowerCase().includes(req.toLowerCase()))
   );
 
   return {
@@ -74,6 +96,7 @@ function statusColor(status: string) {
 export default function UploadCsvPanel() {
   const { profile: user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [spreadsheetType, setSpreadsheetType] = useState<'antiga' | 'nova'>('antiga');
   const [csvInfo, setCsvInfo] = useState<ParsedCsvInfo | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -86,7 +109,7 @@ export default function UploadCsvPanel() {
 
     const q = query(
       collection(db, "jobs"),
-      where("tipo", "==", "sync_pendencias_csv"),
+      where("tipo", "in", ["sync_pendencias_csv", "sync_nova_csv"]),
       orderBy("requested_at", "desc")
     );
 
@@ -120,9 +143,10 @@ export default function UploadCsvPanel() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      const info = parseCsvHeader(text);
+      const info = parseCsvHeader(text, spreadsheetType);
       if (!info) {
-        setParseError(`Cabeçalho inválido: não foi encontrada a linha iniciando com "${HEADER_STARTS_WITH}". Verifique o arquivo.`);
+        const expected = SPREADSHEET_CONFIGS[spreadsheetType].headerStartsWith;
+        setParseError(`Cabeçalho inválido para o tipo ${SPREADSHEET_CONFIGS[spreadsheetType].label}. Verifique o arquivo.`);
         return;
       }
       setCsvInfo(info);
@@ -138,7 +162,7 @@ export default function UploadCsvPanel() {
     formData.append("file", selectedFile);
 
     try {
-      const response = await fetch("/api/sync_csv", {
+      const response = await fetch(SPREADSHEET_CONFIGS[spreadsheetType].endpoint, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${idToken}`,
@@ -230,10 +254,42 @@ export default function UploadCsvPanel() {
         }}
       >
         <h3 style={{ color: "#f1f5f9", marginBottom: "8px", fontSize: "16px", fontWeight: 600 }}>
-          📂 Sincronizar Pendências via CSV (Vercel Node)
+          📂 Sincronizar Pendências via CSV
         </h3>
+        
+        {/* Spreadsheet Type Selector */}
+        <div style={{ display: "flex", gap: "10px", marginBottom: "20px", marginTop: "16px" }}>
+          {(['antiga', 'nova'] as const).map((type) => (
+            <button
+              key={type}
+              onClick={() => {
+                setSpreadsheetType(type);
+                setSelectedFile(null);
+                setCsvInfo(null);
+                setParseError(null);
+              }}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 500,
+                cursor: "pointer",
+                transition: "all 0.2s",
+                background: spreadsheetType === type ? "rgba(99,102,241,0.2)" : "transparent",
+                border: spreadsheetType === type ? "1px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
+                color: spreadsheetType === type ? "#818cf8" : "#94a3b8",
+              }}
+            >
+              {SPREADSHEET_CONFIGS[type].label}
+            </button>
+          ))}
+        </div>
+
         <p style={{ color: "#94a3b8", fontSize: "13px", marginBottom: "20px" }}>
-          Upload direto para arquivos até 4MB. Arquivos maiores usam Vercel Blob e processamento assíncrono.
+          Modo: <strong>{SPREADSHEET_CONFIGS[spreadsheetType].label}</strong>.
+          {spreadsheetType === 'nova' 
+            ? " Ideal para exportações do Google Forms." 
+            : " Ideal para a planilha tradicional do Excel."}
         </p>
 
         <input
@@ -374,7 +430,7 @@ export default function UploadCsvPanel() {
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ color: "#e2e8f0", fontSize: "13px", fontWeight: 500 }}>
-                    {statusLabel(job.status)}
+                    {statusLabel(job.status)} {job.tipo === 'sync_nova_csv' && <span style={{fontSize: '10px', color: '#818cf8', background: 'rgba(99,102,241,0.1)', padding: '2px 6px', borderRadius: '4px', marginLeft: '8px'}}>NOVA</span>}
                   </span>
                   <span style={{ color: "#475569", fontSize: "11px" }}>
                     {job.requested_at?.toDate?.()?.toLocaleString?.("pt-BR") ?? "—"}

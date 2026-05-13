@@ -1,5 +1,7 @@
-import { COLUMN_ALIASES as aliasesJson } from '../_config/column_aliases.js';
-import { RULES_VALIDACAO_V1 as rulesJson } from '../_config/rules_validacao_v1.js';
+import { COLUMN_ALIASES as aliasesAntiga } from '../_config/column_aliases.js';
+import { COLUMN_ALIASES_NOVA as aliasesNova } from '../_config/column_aliases_nova.js';
+import { RULES_VALIDACAO_V1 as rulesAntiga } from '../_config/rules_validacao_v1.js';
+import { RULES_NOVA_V1 as rulesNova } from '../_config/rules_nova_v1.js';
 import { COLAB_MAP as collaboratorsJson } from '../_config/colaboradores_map.js';
 import { getFirestore } from '../_utils/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -103,7 +105,8 @@ function parseDate(dateStr: string): Date | null {
 /**
  * Resolve o nome da coluna caso existam aliases
  */
-function getCanonicalColumn(colName: string): string {
+function getCanonicalColumn(colName: string, tipoOrigem: 'nova' | 'antiga' = 'antiga'): string {
+  const aliasesJson = tipoOrigem === 'nova' ? aliasesNova : aliasesAntiga;
   const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   const inputNorm = norm(colName);
   
@@ -119,17 +122,20 @@ function getCanonicalColumn(colName: string): string {
 /**
  * Gera o fingerprint (ID do documento)
  */
-export function generateFingerprint(row: any): string {
+export function generateFingerprint(row: any, rulesJson: any): string {
   const razao = normalize(row["Razão Social do Cliente"]);
   const produto = normalize(row["Produto"]);
   const vigencia = normalize(row["Inicio da Vigência de Contrato"]);
-  return `${razao}__${produto}__${vigencia}`.substring(0, 250);
+  const base = `${razao}__${produto}__${vigencia}`.substring(0, 240);
+  
+  const prefix = (rulesJson as any).fingerprint?.prefix || "";
+  return `${prefix}${base}`;
 }
 
 /**
  * Verifica se a linha passa pelo Gate
  */
-export function passesGate(row: any): boolean {
+export function passesGate(row: any, rulesJson: any): boolean {
   const field = rulesJson.gate.field;
   const allowed = (rulesJson.gate.allowed as string[]).map(s => compareNormalize(s));
   const rawValue = (row[field] || "").toString();
@@ -139,16 +145,26 @@ export function passesGate(row: any): boolean {
   
   if (!ok) {
     console.log(`[Gate] Linha ignorada. Status: "${rawValue}" (normalizado: "${status}"). Esperados: ${JSON.stringify(allowed)}`);
+    return false;
+  }
+
+  // Check required_for_processing if defined
+  const requiredFields = (rulesJson.gate as any).required_for_processing || [];
+  for (const f of requiredFields) {
+    if (isEmpty(row[f])) {
+      console.log(`[Gate] Linha ignorada. Campo obrigatório para processamento '${f}' está vazio.`);
+      return false;
+    }
   }
   
-  return ok;
+  return true;
 }
 
 /**
  * Verifica se um valor está "Em Tratativa" (em andamento) —
  * campos com esses valores não geram pendência condicional.
  */
-function isInProgress(value: any): boolean {
+function isInProgress(value: any, rulesJson: any): boolean {
   if (!value) return false;
   const valNorm = normalizeSelect(value);
   const progressValues = ((rulesJson as any).in_progress_values as string[] || []).map(v => normalizeSelect(v));
@@ -173,7 +189,7 @@ const ADITIVO_PENDENCY_FIELDS = [
   "Adtivo Finalizado ?",
 ];
 
-function isAditivoEmTratativa(row: any): { isTratativa: boolean, triggerVal: string, finalizadoVal: string } {
+function isAditivoEmTratativa(row: any, rulesJson: any): { isTratativa: boolean, triggerVal: string, finalizadoVal: string } {
   const triggerVal = row[ADITIVO_TRIGGER_FIELD];
   const triggerNorm = normalizeSelect(triggerVal);
   
@@ -184,7 +200,7 @@ function isAditivoEmTratativa(row: any): { isTratativa: boolean, triggerVal: str
   const finalizadoVal = row[ADITIVO_FINALIZADO_FIELD];
   const finalizadoNorm = normalizeSelect(finalizadoVal);
   
-  const isTratativa = isInProgress(finalizadoVal);
+  const isTratativa = isInProgress(finalizadoVal, rulesJson);
   
   return { 
     isTratativa,
@@ -199,13 +215,14 @@ function isAditivoEmTratativa(row: any): { isTratativa: boolean, triggerVal: str
  * - emTratativa: campos genéricos em andamento
  * - aditivoEmTratativa: flag específica — bloco de aditivo está em tratativa
  */
-export function evaluateRules(row: any): {
+export function evaluateRules(row: any, tipoOrigem: 'nova' | 'antiga' = 'antiga'): {
   itens: string[];
   emTratativa: string[];
   aditivoEmTratativa: boolean;
   aditivoSim: boolean;
   aditivoFinalizadoVal: string;
 } {
+  const rulesJson = tipoOrigem === 'nova' ? rulesNova : rulesAntiga;
   try {
     const itens: string[] = [];
     const emTratativa: string[] = [];
@@ -218,7 +235,7 @@ export function evaluateRules(row: any): {
     }
 
     // 2. Conditional required fields
-    const { isTratativa: aditivoETratativa, finalizadoVal, triggerVal } = isAditivoEmTratativa(row);
+    const { isTratativa: aditivoETratativa, finalizadoVal, triggerVal } = isAditivoEmTratativa(row, rulesJson);
     const aditivoSim = normalizeSelect(triggerVal) === "SIM";
     const triggerNorm = normalizeSelect(row[ADITIVO_TRIGGER_FIELD]);
 
@@ -238,7 +255,7 @@ export function evaluateRules(row: any): {
         for (const reqField of (cond.then_require as string[])) {
           const fieldValue = row[reqField];
           // Campo genérico "Em Tratativa"
-          if (isInProgress(fieldValue)) {
+          if (isInProgress(fieldValue, rulesJson)) {
             if (!emTratativa.includes(reqField)) emTratativa.push(reqField);
             continue;
           }
@@ -348,9 +365,10 @@ export function resolveCollaborator(name: string): { id: string | null, mapped: 
 /**
  * Processamento principal de uma linha
  */
-export async function processRow(row: any, lineNum: number, adminUid: string) {
+export async function processRow(row: any, lineNum: number, adminUid: string, tipoOrigem: 'nova' | 'antiga' = 'antiga') {
   const db = getFirestore();
-  const cleanedRow = cleanRow(row);
+  const rulesJson = tipoOrigem === 'nova' ? rulesNova : rulesAntiga;
+  const cleanedRow = cleanRow(row, tipoOrigem);
   
   // Extrair a Vigência para filtrar (Permitir apenas >= 2026 e < hoje)
   const vigenciaStr = (cleanedRow["Inicio da Vigência de Contrato"] || "").toString();
@@ -385,10 +403,10 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   }
 
   // Gate
-  if (!passesGate(cleanedRow)) return { action: 'ignored_by_gate' };
+  if (!passesGate(cleanedRow, rulesJson)) return { action: 'ignored_by_gate' };
 
   // Rules
-  const { itens, emTratativa, aditivoEmTratativa, aditivoSim, aditivoFinalizadoVal } = evaluateRules(cleanedRow);
+  const { itens, emTratativa, aditivoEmTratativa, aditivoSim, aditivoFinalizadoVal } = evaluateRules(cleanedRow, tipoOrigem);
 
   // Resolve Collab (Mudança para CONSULTOR DE ONBOARDING)
   const representante = cleanedRow["CONSULTOR DE ONBOARDING"] || "";
@@ -398,8 +416,22 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     itens.push("Sem responsável (mapear consultor onboarding)");
   }
 
-  // Fingerprint (necessário antes do alerta e do upsert)
-  const fp = generateFingerprint(cleanedRow);
+  let migrationNotice = "";
+  // Deduplicação inteligente (Apenas para planilha nova)
+  if (tipoOrigem === 'nova') {
+    const razao = normalize(cleanedRow["Razão Social do Cliente"]);
+    const produto = normalize(cleanedRow["Produto"]);
+    // Procurar por registro 'antiga'
+    const oldFp = `${razao}__${produto}__${normalize(cleanedRow["Inicio da Vigência de Contrato"])}`.substring(0, 240);
+    const oldSnap = await db.collection('pendencias').doc(oldFp).get();
+    if (oldSnap.exists) {
+      console.log(`[Deduplicação] Detectada empresa existente na planilha antiga: ${oldFp}`);
+      migrationNotice = `IMPORTANTE: Esta empresa já possui um registro originário da Planilha Tradicional (${oldFp}).`;
+    }
+  }
+
+  // Fingerprint
+  const fp = generateFingerprint(cleanedRow, rulesJson);
 
   // ── ALERTA: Itens Em Tratativa / Aditivo ──────────────────────────
   if (aditivoEmTratativa || emTratativa.length > 0) {
@@ -460,7 +492,8 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
     atualizado_em: FieldValue.serverTimestamp(),
     linha_planilha: lineNum,
     linha_csv: cleanedRow,
-    tipo_implantacao: (cleanedRow["Produto"] || "").toString().toUpperCase().includes("ODONTO") ? "Odonto" : "Saúde"
+    tipo_implantacao: (cleanedRow["Produto"] || "").toString().toUpperCase().includes("ODONTO") ? "Odonto" : "Saúde",
+    origem_planilha: tipoOrigem
   };
 
   let action: 'criada' | 'editada' | 'sem_mudanca' = 'sem_mudanca';
@@ -504,6 +537,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
   const novos = itensFinais.filter(i => !(oldItens as string[]).includes(i));
   
   let comentario = "Sincronização via processamento de CSV.";
+  if (migrationNotice) comentario = `${migrationNotice} ${comentario}`;
   if (resolvidos.length > 0) comentario += ` Itens preenchidos: ${resolvidos.join(', ')}.`;
   if (novos.length > 0) comentario += ` Novos itens detectados: ${novos.join(', ')}.`;
   if (itensFinais.length === 0 && oldItens.length > 0) comentario = "Pendência totalmente resolvida via CSV.";
@@ -534,14 +568,14 @@ export async function processRow(row: any, lineNum: number, adminUid: string) {
 /**
  * Função para limpar os nomes das colunas (remover trim, aspas e aplicar aliases)
  */
-export function cleanRow(rawRow: any): any {
+export function cleanRow(rawRow: any, tipoOrigem: 'nova' | 'antiga' = 'antiga'): any {
   const cleaned: any = {};
   for (const [key, value] of Object.entries(rawRow)) {
     const trimmedKey = key.trim();
     // Ignorar colunas sem nome (vazias) que quebram o Firestore
     if (!trimmedKey) continue;
     
-    const canonicalKey = getCanonicalColumn(trimmedKey);
+    const canonicalKey = getCanonicalColumn(trimmedKey, tipoOrigem);
     cleaned[canonicalKey] = (value as string || "").toString().trim();
   }
   return cleaned;
