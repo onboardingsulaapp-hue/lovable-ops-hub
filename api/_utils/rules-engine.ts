@@ -482,7 +482,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string, ti
     data_vigencia: cleanedRow["Inicio da Vigência de Contrato"] || "N/A",
     status: "Pendente",
     prioridade: "Média",
-    origem: "Automático",
+    origem: tipoOrigem === "nova" ? "Nova - Forms" : "Tradicional",
     isDeleted: false,
     itens_pendentes: itensFinais,
     pendencias: itensFinais, // Alias para frontend

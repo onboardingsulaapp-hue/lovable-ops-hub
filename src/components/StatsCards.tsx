@@ -12,7 +12,7 @@ export function StatsCards({ pendencias }: StatsCardsProps) {
   const pendentes = pendencias.filter((p) => p.status?.toLowerCase() === "pendente").length;
   const corrigidas = pendencias.filter((p) => p.status?.toLowerCase() === "corrigida").length;
   const ok = pendencias.filter((p) => p.status?.toLowerCase() === "ok").length;
-  const novaPlanilha = pendencias.filter((p) => p.origem === "Nova - Forms" && p.status?.toLowerCase() === "pendente").length;
+  const novaPlanilha = pendencias.filter((p) => (p.origem === "Nova - Forms" || (p as any).origem_planilha === "nova") && p.status?.toLowerCase() === "pendente").length;
   const colaboradores = new Set(pendencias.map((p) => p.colaborador_nome)).size;
   
   const cards = [
