@@ -70,10 +70,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             for (const rawRow of records) {
               const row = cleanRow(rawRow);
-              const rawStatus = row['Status da Empresa'] || row['Status de Implantação'] || row['Status'] || '';
-              const normalizedStatus = normalize(rawStatus);
+              
+              // Função auxiliar para buscar valor por palavra-chave na coluna
+              const getValueByKeyword = (keywords: string[]) => {
+                const entry = Object.entries(row).find(([key]) => {
+                  const normKey = normalize(key);
+                  return keywords.some(kw => normKey.includes(kw));
+                });
+                return entry ? entry[1] : null;
+              };
 
-              // 1. Validar Status (Busca por palavras-chave para ser ultra-flexível)
+              const rawStatus = getValueByKeyword(["STATUS", "SITUACAO"]) || "";
+              const normalizedStatus = normalize(String(rawStatus));
+
+              // 1. Validar Status
               const isOperacao = normalizedStatus.includes("OPERACAO");
               const isCliente = normalizedStatus.includes("CLIENTE") || normalizedStatus.includes("CORRETORA") || normalizedStatus.includes("CORRETORRA");
               const isFutura = normalizedStatus.includes("FUTURA");
@@ -81,10 +91,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               if (!isOperacao && !isCliente && !isFutura) continue;
 
               // 2. Validar Data (Apenas 2026 em diante)
-              const rawVigencia = row['Inicio da Vigência de Contrato'] || row['Vigência'] || '';
+              const rawVigencia = getValueByKeyword(["VIGENCIA", "CONTRATO"]) || "";
+              const strVigencia = String(rawVigencia);
               let isYearValid = true;
-              if (rawVigencia) {
-                const yearMatch = rawVigencia.match(/\d{4}/);
+              if (strVigencia) {
+                const yearMatch = strVigencia.match(/\d{4}/);
                 if (yearMatch) {
                   const year = parseInt(yearMatch[0]);
                   if (year < 2026) isYearValid = false;
@@ -92,23 +103,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               }
 
               if (isYearValid) {
-                const razao = row['Razão Social do Cliente'] || row['Cliente'] || 'N/A';
-                const produto = row['Produto'] || 'N/A';
-                const consultor = row['CONSULTOR DE ONBOARDING'] || row['Consultor'] || 'Sem Consultor';
+                const razao = getValueByKeyword(["RAZAO SOCIAL", "CLIENTE", "EMPRESA"]) || "N/A";
+                const produto = getValueByKeyword(["PRODUTO"]) || "N/A";
+                const consultor = getValueByKeyword(["CONSULTOR", "REPRESENTANTE"]) || "Sem Consultor";
                 
-                // Fingerprint mais robusto para evitar que uma empresa sobrescreva outra se tiver mais de um processo
-                const fp = `vol_${source}_${normalize(razao)}__${normalize(produto)}__${normalize(rawVigencia)}`.substring(0, 240);
+                const fp = `vol_${source}_${normalize(String(razao))}__${normalize(String(produto))}__${normalize(strVigencia)}`.substring(0, 240);
                 seenFingerprints.add(fp);
 
                 const docRef = collection.doc(fp);
                 batch.set(docRef, {
-                  razao_social: razao,
-                  produto: produto,
-                  consultor: consultor,
-                  status_pipeline: rawStatus,
+                  razao_social: String(razao),
+                  produto: String(produto),
+                  consultor: String(consultor),
+                  status_pipeline: String(rawStatus),
                   status_normalizado: normalizedStatus,
                   origem: source,
-                  data_vigencia: rawVigencia,
+                  data_vigencia: strVigencia,
                   updated_at: FieldValue.serverTimestamp(),
                   last_sync_by: uid
                 }, { merge: true });
