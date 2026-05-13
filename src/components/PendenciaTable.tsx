@@ -176,6 +176,14 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                             Em Tratativa
                           </span>
                         )}
+                        {p.origem === "Nova - Forms" && (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border-purple-200 uppercase"
+                          >
+                            <FileSpreadsheet className="h-2.5 w-2.5" />
+                            Nova Planilha
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
