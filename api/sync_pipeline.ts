@@ -58,20 +58,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               trim: true,
               bom: true,
               relax_column_count: true,
-              from_line: fromLine
+              from_line: fromLine,
+              delimiter: [',', ';'] // Suporte a vírgula e ponto e vírgula
             });
 
-            const source = req.query.source || 'tradicional'; // 'tradicional' ou 'nova'
+            const source = req.query.source || 'tradicional'; 
             const seenFingerprints = new Set<string>();
             const batch = db.batch();
             const collection = db.collection('pipeline_volumetria');
             
             let countProcessed = 0;
+            let countIgnoredStatus = 0;
+            let countIgnoredYear = 0;
+            const ignoredEx = [];
 
             for (const rawRow of records) {
               const row = cleanRow(rawRow);
               
-              // Função auxiliar para buscar valor por palavra-chave na coluna
               const getValueByKeyword = (keywords: string[]) => {
                 const entry = Object.entries(row).find(([key]) => {
                   const normKey = normalize(key);
@@ -83,14 +86,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               const rawStatus = getValueByKeyword(["STATUS", "SITUACAO"]) || "";
               const normalizedStatus = normalize(String(rawStatus));
 
-              // 1. Validar Status
+              // 1. Validar Status (Ainda mais flexível)
               const isOperacao = normalizedStatus.includes("OPERACAO");
               const isCliente = normalizedStatus.includes("CLIENTE") || normalizedStatus.includes("CORRETORA") || normalizedStatus.includes("CORRETORRA");
-              const isFutura = normalizedStatus.includes("FUTURA");
+              const isFutura = normalizedStatus.includes("FUTURA") || normalizedStatus.includes("IMPLANTACAO");
               
-              if (!isOperacao && !isCliente && !isFutura) continue;
+              if (!isOperacao && !isCliente && !isFutura) {
+                countIgnoredStatus++;
+                if (ignoredEx.length < 5) ignoredEx.push({ r: row['Razão Social do Cliente'], s: rawStatus, m: 'Status não permitido' });
+                continue;
+              }
 
-              // 2. Validar Data (Apenas 2026 em diante)
+              // 2. Validar Data
               const rawVigencia = getValueByKeyword(["VIGENCIA", "CONTRATO"]) || "";
               const strVigencia = String(rawVigencia);
               let isYearValid = true;
@@ -102,10 +109,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
               }
 
+              if (!isYearValid) {
+                countIgnoredYear++;
+                continue;
+              }
+
               if (isYearValid) {
                 const razao = getValueByKeyword(["RAZAO SOCIAL", "CLIENTE", "EMPRESA"]) || "N/A";
                 const produto = getValueByKeyword(["PRODUTO"]) || "N/A";
-                const consultor = getValueByKeyword(["CONSULTOR", "REPRESENTANTE"]) || "Sem Consultor";
+                let consultor = getValueByKeyword(["CONSULTOR", "REPRESENTANTE"]) || "Sem Consultor";
+                if (typeof consultor === 'string' && (consultor.trim() === "" || consultor.trim() === "-")) {
+                  consultor = "Sem Consultor";
+                }
                 
                 const fp = `vol_${source}_${normalize(String(razao))}__${normalize(String(produto))}__${normalize(strVigencia)}`.substring(0, 240);
                 seenFingerprints.add(fp);
@@ -151,6 +166,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               ok: true, 
               processed: countProcessed, 
               deleted: countDeleted,
+              ignored: { status: countIgnoredStatus, year: countIgnoredYear, examples: ignoredEx },
               total_active: seenFingerprints.size
             });
             resolve(true);
