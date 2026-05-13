@@ -70,18 +70,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             for (const rawRow of records) {
               const row = cleanRow(rawRow);
-              // Tentar pegar o status de várias colunas possíveis
               const rawStatus = row['Status da Empresa'] || row['Status de Implantação'] || row['Status'] || '';
               const normalizedStatus = normalize(rawStatus);
 
-              // Filtrar status permitidos
-              const isAllowed = ALLOWED_STATUSES.some(s => 
+              // 1. Validar Status
+              const isAllowedStatus = ALLOWED_STATUSES.some(s => 
                 normalizedStatus === s || 
                 normalizedStatus.includes(s) || 
                 s.includes(normalizedStatus)
               );
               
-              if (isAllowed) {
+              if (!isAllowedStatus) continue;
+
+              // 2. Validar Data (Apenas 2026 em diante, sem limite final)
+              const rawVigencia = row['Inicio da Vigência de Contrato'] || row['Vigência'] || '';
+              let isYearValid = true;
+              if (rawVigencia) {
+                // Tenta extrair o ano (formatos DD/MM/YYYY ou YYYY-MM-DD)
+                const yearMatch = rawVigencia.match(/\d{4}/);
+                if (yearMatch) {
+                  const year = parseInt(yearMatch[0]);
+                  if (year < 2026) isYearValid = false;
+                }
+              }
+
+              if (isAllowedStatus && isYearValid) {
                 const razao = row['Razão Social do Cliente'] || row['Cliente'] || 'N/A';
                 const produto = row['Produto'] || 'N/A';
                 const consultor = row['CONSULTOR DE ONBOARDING'] || row['Consultor'] || 'Sem Consultor';
@@ -97,6 +110,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   status_pipeline: rawStatus,
                   status_normalizado: normalizedStatus,
                   origem: source,
+                  data_vigencia: rawVigencia,
                   updated_at: FieldValue.serverTimestamp(),
                   last_sync_by: uid
                 }, { merge: true });
