@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { ReabrirPendenciaDialog } from "./ReabrirPendenciaDialog";
 import { EditPendenciaDialog } from "./EditPendenciaDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 interface PendenciaTableProps {
   pendencias: Pendencia[];
