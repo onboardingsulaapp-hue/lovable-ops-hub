@@ -86,8 +86,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               const rawStatus = getValueByKeyword(["STATUS", "SITUACAO"]) || "";
               const normalizedStatus = normalize(String(rawStatus));
 
-              // 1. Validar Status (Ainda mais flexível)
-              const isOperacao = normalizedStatus.includes("OPERACAO");
+              // 1. Validar Status (Máxima abrangência para Em Curso e Futura)
+              const isOperacao = normalizedStatus.includes("OPERACAO") || normalizedStatus.includes("CURSO") || normalizedStatus.includes("ANDAMENTO");
               const isCliente = normalizedStatus.includes("CLIENTE") || normalizedStatus.includes("CORRETORA") || normalizedStatus.includes("CORRETORRA");
               const isFutura = normalizedStatus.includes("FUTURA") || normalizedStatus.includes("IMPLANTACAO");
               
@@ -98,10 +98,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               }
 
               // 2. Validar Data
+              // Regra: Se for FUTURA, obrigatoriamente 2026+. Se for EM CURSO, aceita qualquer data (pois é carga atual).
               const rawVigencia = getValueByKeyword(["VIGENCIA", "CONTRATO"]) || "";
               const strVigencia = String(rawVigencia);
               let isYearValid = true;
-              if (strVigencia) {
+              
+              if (isFutura && !isOperacao && !isCliente && strVigencia) {
                 const yearMatch = strVigencia.match(/\d{4}/);
                 if (yearMatch) {
                   const year = parseInt(yearMatch[0]);
@@ -121,14 +123,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // Pega o consultor
                 let consultor = getValueByKeyword(["CONSULTOR", "REPRESENTANTE"]);
                 
-                // VALIDAR CONSULTOR: Se estiver vazio, for apenas um traço ou um ID técnico (como UIDs do Firebase), IGNORAR.
+                // VALIDAR CONSULTOR: Ignorar se estiver vazio ou for ID técnico
                 if (!consultor || typeof consultor !== 'string') continue;
-                
                 const consultorTrim = consultor.trim();
                 const isIdTecnico = consultorTrim.length > 20 && /[0-9]/.test(consultorTrim) && /[A-Z]/.test(consultorTrim);
                 
                 if (consultorTrim === "" || consultorTrim === "-" || isIdTecnico) {
-                  continue; // Não registrar se não tiver um nome válido de consultor
+                  continue; 
                 }
                 
                 const fp = `vol_${source}_${normalize(String(razao))}__${normalize(String(produto))}__${normalize(strVigencia)}`.substring(0, 240);
