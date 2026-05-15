@@ -64,118 +64,137 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const source = req.query.source || 'tradicional'; 
             const seenFingerprints = new Set<string>();
-            const batch = db.batch();
             const collection = db.collection('pipeline_volumetria');
-            
             let countProcessed = 0;
             let countIgnoredStatus = 0;
             let countIgnoredYear = 0;
-            const ignoredEx = [];
+            const ignoredEx: any[] = [];
+            let rowIndex = 0;
+            
+            // Usar um contador de operações para o batch principal
+            let currentBatch = db.batch();
+            let opCount = 0;
 
             for (const rawRow of records) {
+              rowIndex++;
               const row = cleanRow(rawRow);
               
               const getValueByKeyword = (keywords: string[]) => {
                 const entry = Object.entries(row).find(([key]) => {
-                  const normKey = normalize(key);
+                  const normKey = normalize(String(key));
                   return keywords.some(kw => normKey.includes(kw));
                 });
                 return entry ? entry[1] : null;
               };
 
-              const rawStatus = getValueByKeyword(["STATUS", "SITUACAO"]) || "";
+              const rawStatus = getValueByKeyword(["STATUS", "SITUACAO", "FASE", "ETAPA"]) || "";
               const normalizedStatus = normalize(String(rawStatus));
 
-              // 1. Validar Status (Máxima abrangência para Em Curso e Futura)
-              const isOperacao = normalizedStatus.includes("OPERACAO") || normalizedStatus.includes("CURSO") || normalizedStatus.includes("ANDAMENTO");
-              const isCliente = normalizedStatus.includes("CLIENTE") || normalizedStatus.includes("CORRETORA") || normalizedStatus.includes("CORRETORRA");
-              const isFutura = normalizedStatus.includes("FUTURA") || normalizedStatus.includes("IMPLANTACAO");
-              
-              if (!isOperacao && !isCliente && !isFutura) {
+              // Regra Estrita de Status: Se tiver "CONCLUIDA" ou "CONCLUIDO", ignora 100%
+              if (normalizedStatus.includes("CONCLUIDA") || normalizedStatus.includes("CONCLUIDO") || normalizedStatus.includes("COMPLETA")) {
                 countIgnoredStatus++;
-                if (ignoredEx.length < 5) ignoredEx.push({ r: row['Razão Social do Cliente'], s: rawStatus, m: 'Status não permitido' });
                 continue;
               }
 
-              // 2. Validar Data
-              // Regra: Se for FUTURA, obrigatoriamente 2026+. Se for EM CURSO, aceita qualquer data (pois é carga atual).
-              const rawVigencia = getValueByKeyword(["VIGENCIA", "CONTRATO"]) || "";
-              const strVigencia = String(rawVigencia);
-              let isYearValid = true;
-              
-              if (isFutura && !isOperacao && !isCliente && strVigencia) {
-                const yearMatch = strVigencia.match(/\d{4}/);
-                if (yearMatch) {
-                  const year = parseInt(yearMatch[0]);
-                  if (year < 2026) isYearValid = false;
-                }
+              const isDeclinada = normalizedStatus.includes("DECLINADA") || normalizedStatus.includes("CANCELADA");
+              const isAtivo = normalizedStatus.includes("CURSO") || 
+                              normalizedStatus.includes("OPERACAO") || 
+                              normalizedStatus.includes("ANDAMENTO") ||
+                              normalizedStatus.includes("FUTURA") || 
+                              normalizedStatus.includes("IMPLANTACAO") ||
+                              normalizedStatus.includes("CLIENTE") || 
+                              normalizedStatus.includes("CORRETORA");
+
+              if (isDeclinada || !isAtivo) {
+                countIgnoredStatus++;
+                continue;
               }
 
-              if (!isYearValid) {
+              const rawVigencia = getValueByKeyword(["VIGENCIA", "CONTRATO"]) || "";
+              const strVigencia = normalize(String(rawVigencia));
+              const yearMatch = strVigencia.match(/\d{4}/);
+              const year = yearMatch ? parseInt(yearMatch[0]) : 0;
+
+              const isEmCursoExplicit = normalizedStatus.includes("CURSO") || normalizedStatus.includes("OPERACAO");
+              if (year > 0 && year < 2026 && !isEmCursoExplicit) {
                 countIgnoredYear++;
                 continue;
               }
 
-              if (isYearValid) {
-                const razao = getValueByKeyword(["RAZAO SOCIAL", "CLIENTE", "EMPRESA"]) || "N/A";
-                const produto = getValueByKeyword(["PRODUTO"]) || "N/A";
-                
-                // Pega o consultor
-                let consultor = getValueByKeyword(["CONSULTOR", "REPRESENTANTE"]);
-                
-                // VALIDAR CONSULTOR: Ignorar se estiver vazio ou for ID técnico
-                if (!consultor || typeof consultor !== 'string') continue;
-                const consultorTrim = consultor.trim();
-                const isIdTecnico = consultorTrim.length > 20 && /[0-9]/.test(consultorTrim) && /[A-Z]/.test(consultorTrim);
-                
-                if (consultorTrim === "" || consultorTrim === "-" || isIdTecnico) {
-                  continue; 
-                }
-                
-                const fp = `vol_${source}_${normalize(String(razao))}__${normalize(String(produto))}__${normalize(strVigencia)}`.substring(0, 240);
-                seenFingerprints.add(fp);
+              const razao = getValueByKeyword(["RAZAO SOCIAL", "CLIENTE", "EMPRESA"]) || "N/A";
+              const produto = getValueByKeyword(["PRODUTO"]) || "N/A";
+              
+              // Busca ESTRITA: Apenas na coluna CONSULTOR DE ONBOARDING
+              const consultor = getValueByKeyword(["CONSULTOR DE ONBOARDING"]);
+              
+              if (!consultor || String(consultor).trim() === "" || String(consultor).trim() === "-") continue;
+              
+              const consultorTrim = String(consultor).trim().toUpperCase();
+              const blacklist = ["LEGADO", "DECLINADO", "PENDENTE", "N/A", "N/H", "NH", "LIXO", "TESTE"];
+              const isBlacklisted = blacklist.some(b => consultorTrim === b || consultorTrim.includes(`*${b}*`));
+              const isIdTecnico = consultorTrim.length > 20 && /[0-9]/.test(consultorTrim);
 
-                const docRef = collection.doc(fp);
-                batch.set(docRef, {
-                  razao_social: String(razao),
-                  produto: String(produto),
-                  consultor: String(consultor),
-                  status_pipeline: String(rawStatus),
-                  status_normalizado: normalizedStatus,
-                  origem: source,
-                  data_vigencia: strVigencia,
-                  updated_at: FieldValue.serverTimestamp(),
-                  last_sync_by: uid
-                }, { merge: true });
+              if (isBlacklisted || isIdTecnico) continue;
 
-                countProcessed++;
+              const uniqueKey = `${normalize(String(razao))}_${normalize(String(produto))}_${strVigencia}_${rowIndex}`;
+              const fp = `vol_${source}_${uniqueKey}`.substring(0, 240);
+              seenFingerprints.add(fp);
+
+              const docRef = collection.doc(fp);
+              currentBatch.set(docRef, {
+                razao_social: String(razao),
+                produto: String(produto),
+                consultor: consultorTrim,
+                status_pipeline: String(rawStatus),
+                status_normalizado: normalizedStatus,
+                origem: source,
+                data_vigencia: String(rawVigencia),
+                updated_at: FieldValue.serverTimestamp(),
+                last_sync_by: uid
+              }, { merge: true });
+
+              countProcessed++;
+              opCount++;
+
+              if (opCount >= 450) {
+                await currentBatch.commit();
+                currentBatch = db.batch();
+                opCount = 0;
               }
             }
 
-            if (countProcessed > 0) {
-              await batch.commit();
+            if (opCount > 0) {
+              await currentBatch.commit();
             }
 
             // Snapshot Seletivo: Remover apenas o que for da mesma ORIGEM e não estiver no CSV
             const allDocs = await collection.where('origem', '==', source).get();
-            const deleteBatch = db.batch();
-            let countDeleted = 0;
+            let deleteBatch = db.batch();
+            let deleteCount = 0;
+            let currentDelCount = 0;
 
-            allDocs.forEach(doc => {
+            for (const doc of allDocs.docs) {
               if (!seenFingerprints.has(doc.id)) {
                 deleteBatch.delete(doc.ref);
-                countDeleted++;
+                deleteCount++;
+                currentDelCount++;
+                
+                if (currentDelCount >= 450) {
+                  await deleteBatch.commit();
+                  deleteBatch = db.batch();
+                  currentDelCount = 0;
+                }
               }
-            });
+            }
 
-            if (countDeleted > 0) {
+            if (currentDelCount > 0) {
               await deleteBatch.commit();
             }
 
             res.status(200).json({ 
               ok: true, 
               processed: countProcessed, 
-              deleted: countDeleted,
+              deleted: deleteCount,
               ignored: { status: countIgnoredStatus, year: countIgnoredYear, examples: ignoredEx },
               total_active: seenFingerprints.size
             });
