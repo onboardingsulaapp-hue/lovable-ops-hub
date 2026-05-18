@@ -12,7 +12,7 @@ const cleanHeader = (header: string) => cleanString(header).replace(/\s+/g, " ")
 
 const isValidStatus = (status: string) => {
   const s = cleanString(status).toUpperCase();
-  return s === "IMPLANTAÇÃO CONCLUÍDA COMPLETA" || s === "IMPLANTAÇÃO CONCLUÍDA COM PENDÊNCIA";
+  return s.includes("CONCLUÍDA") || s.includes("CONCLUIDA");
 };
 
 const matchesDate = (dateStr: string, month: string, year: string) => {
@@ -24,15 +24,15 @@ const matchesDate = (dateStr: string, month: string, year: string) => {
 
   if (str.includes("/")) {
     const parts = str.split("/");
-    if (parts.length === 3) {
-      dMonth = parts[1];
-      dYear = parts[2];
+    if (parts.length >= 3) {
+      dMonth = parts[1].padStart(2, '0');
+      dYear = parts[2].substring(0, 4);
     }
   } else if (str.includes("-")) {
     const parts = str.split("-");
-    if (parts.length === 3) {
-      dYear = parts[0];
-      dMonth = parts[1];
+    if (parts.length >= 3) {
+      dYear = parts[0].substring(0, 4);
+      dMonth = parts[1].padStart(2, '0');
     }
   }
 
@@ -75,15 +75,20 @@ export const exportMonthlyReport = async ({ file, selectedMonth, selectedYear }:
   // 4. Procurar as chaves exatas mapeadas (buscando pelos nomes limpos e upper case)
   // Como usamos toUpperCase() nos cabeçalhos lidos, faremos a busca assim:
   const colRazaoSocial = "RAZÃO SOCIAL DO CLIENTE";
-  const colVidas = "VIDAS IMPLANTADAS";
-  const colFaturamento = "FATURAMENTO EMITIDO (R$ MENSAL)";
-  const colCongenere = "CONGÊNERE DE ORIGEM";
-  const colConsultorOnboarding = "CONSULTOR DE ONBOARDING";
-  const colEmail = "ENDEREÇO DE E-MAIL";
-  const colDiretoria = "QUAL A SUA DIRETORIA?";
+  const colSegmento = "SEGMENTO CORPORATIVO OU VAREJO?";
+  const colCorretora = "RAZÃO SOCIAL DA CORRETORA RESPONSÁVEL PELA IMPLANTAÇÃO";
+  const colTipoImplantacao = "TIPO DE IMPLANTAÇÃO";
   const colProduto = "PRODUTO";
   const colCodigoProduto = "CÓDIGO DO PRODUTO";
+  const colDataVigenciaForms = "DATA DE VIGÊNCIA (DD/MM/AAAA)";
   const colInicioVigencia = "INICIO DA VIGÊNCIA DE CONTRATO";
+  const colCodEmpresa = "CÓD. DA EMPRESA (SAÚDE/ODONTO)";
+  const colCodGrupo = "CÓD. DO GRUPO/APÓLICE";
+  const colVidas = "VIDAS IMPLANTADAS";
+  const colSupRelacionamento = "SUPERINTÊNCIA DE RELACIONAMENTO";
+  const colGerenteRelacionamento = "GERENTE RELACIONAMENTO";
+  const colConsultorRelacionamento = "CONSULTOR DE RELACIONAMENTO";
+  const colCidadeRH = "CIDADE DO RH DECISÓRIO";
   const colStatus = "STATUS DA EMPRESA";
 
   const outputRows: any[] = [];
@@ -104,31 +109,29 @@ export const exportMonthlyReport = async ({ file, selectedMonth, selectedYear }:
     };
 
     const status = getVal(colStatus);
-    const inicioVigencia = getVal(colInicioVigencia) || getVal("INÍCIO DA VIGÊNCIA DE CONTRATO");
+    const inicioVigencia = getVal(colInicioVigencia) || getVal("INÍCIO DA VIGÊNCIA DE CONTRATO") || getVal("DATA DE VIGÊNCIA (DD/MM/AAAA)") || getVal("DATA DE VIGÊNCIA");
 
     if (isValidStatus(status) && matchesDate(inicioVigencia, selectedMonth, selectedYear)) {
       
-      let faturamento = cleanString(getVal(colFaturamento));
-      if (!faturamento || faturamento === "0" || faturamento === "0,00" || faturamento.toLowerCase() === "vazio") {
-        faturamento = "Sem Dados";
-      }
-
-      const rawEmail = getVal(colEmail);
-      const consultorComercial = cleanEmailForCommercialConsultant(rawEmail);
-
-      const diretoria = cleanString(getVal(colDiretoria) || getVal("DIRETORIA"));
+      const representante = getVal("CONSULTOR DE IMPLANTAÇÃO/OPERACIONAL") || getVal("CONSULTOR DE ONBOARDING") || getVal("ANALISTA DE IMPLANTAÇÃO");
 
       const outRow = {
         "Razão Social do Cliente": cleanString(getVal(colRazaoSocial)),
-        "Vidas Implantadas": cleanString(getVal(colVidas)),
-        "Faturamento Emitido (R$ Mensal)": faturamento,
-        "Congênere de Origem": cleanString(getVal(colCongenere)),
-        "Consultor de Onboarding": cleanString(getVal(colConsultorOnboarding)),
-        "Consultor Comercial": consultorComercial,
-        "Qual sua diretoria?": diretoria,
+        "Segmento Corporativo ou Varejo": cleanString(getVal(colSegmento)),
+        "Razão Social da Corretora": cleanString(getVal(colCorretora)),
+        "Tipo de implantação": cleanString(getVal(colTipoImplantacao)),
         "Produto": cleanString(getVal(colProduto)),
         "Código do Produto": cleanString(getVal(colCodigoProduto)),
-        "Inicio de vigência de contrato": cleanString(inicioVigencia),
+        "Data de Vigência (DD/MM/AAAA)": cleanString(getVal(colDataVigenciaForms) || getVal("DATA DE VIGÊNCIA")),
+        "Inicio da vigência de Contrato": cleanString(inicioVigencia),
+        "Representante da Implantação": cleanString(representante),
+        "Cód. da Empresa (Saúde/Odonto)": cleanString(getVal(colCodEmpresa)),
+        "Cód. do Grupo/Apólice": cleanString(getVal(colCodGrupo)),
+        "Vidas Implantadas": cleanString(getVal(colVidas)),
+        "Superintendência de Relacionamento": cleanString(getVal(colSupRelacionamento) || getVal("SUPERINTENDÊNCIA DE RELACIONAMENTO")),
+        "Gerente Relacionamento": cleanString(getVal(colGerenteRelacionamento)),
+        "Consultor de Relacionamento": cleanString(getVal(colConsultorRelacionamento)),
+        "Cidade do RH Decisório": cleanString(getVal(colCidadeRH)),
       };
 
       outputRows.push(outRow);

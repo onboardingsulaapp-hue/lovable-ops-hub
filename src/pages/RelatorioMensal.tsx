@@ -23,7 +23,7 @@ const meses = [
   { value: "12", label: "Dezembro" },
 ];
 
-const anos = ["2026", "2027", "2028", "2029", "2030"];
+const anos = ["2023", "2024", "2025", "2026", "2027", "2028", "2029", "2030"];
 
 export default function RelatorioMensal() {
   const { profile: user, loading } = useAuth();
@@ -97,9 +97,12 @@ export default function RelatorioMensal() {
       </div>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-8 space-y-8 animate-fade-in">
-        <Card className="border border-borderLight shadow-sm max-w-2xl mx-auto">
+        <Card className="border border-borderLight shadow-sm max-w-2xl mx-auto border-t-4 border-t-brand-orange overflow-hidden">
           <CardHeader className="bg-white border-b border-borderLight pb-4">
-            <CardTitle className="text-xl font-bold text-brand-blue">Gerador de Relatório</CardTitle>
+            <CardTitle className="text-xl font-bold text-brand-blue flex items-center gap-2">
+              <FileDown className="w-5 h-5 text-brand-orange" />
+              Gerador de Relatório
+            </CardTitle>
             <CardDescription className="text-sm text-brand-muted mt-2">
               Carregue a planilha bruta da SulAmérica. O sistema irá remover o lixo do cabeçalho, 
               filtrar pelo mês selecionado (onde Status = Concluída) e gerar um novo CSV pronto para uso.
