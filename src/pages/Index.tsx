@@ -596,9 +596,15 @@ const Index = () => {
               </table>
 
               <div style="text-align: center; margin: 32px 0;">
-                <a href="${window.location.origin}" style="background-color: #1D2E5D; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; display: inline-block; transition: background-color 0.2s;">
-                  Acessar Sistema e Corrigir
-                </a>
+                <p style="font-size: 14px; color: #737D9A; margin-bottom: 16px; font-weight: 500;">Acesse as planilhas abaixo para realizar as correções:</p>
+                <div style="display: inline-flex; gap: 16px; flex-wrap: wrap; justify-content: center;">
+                  <a href="https://docs.google.com/spreadsheets/d/1DsqQKV45tM6DlTZA-9D3HN20u_57ebzfnF7aufIYHWY/edit?usp=sharing" target="_blank" style="background-color: #1D2E5D; color: white; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">
+                    Planilha de Implantação
+                  </a>
+                  <a href="https://docs.google.com/spreadsheets/d/114TPTZMAuF_UTDNmDm55S5Otz1sa612IAENl-XZo33M/edit?usp=sharing" target="_blank" style="background-color: #F68B2C; color: white; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">
+                    Planilha Temporária
+                  </a>
+                </div>
               </div>
 
               <div style="border-top: 1px solid #E2E8F0; padding-top: 24px; margin-top: 32px; text-align: center;">
@@ -809,7 +815,7 @@ const Index = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-3 relative z-10">
+            <div className="flex flex-wrap items-center gap-3 relative z-10">
               {user.role === "admin" && (
                 <>
                   <Dialog>
