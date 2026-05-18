@@ -18,11 +18,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface SocioChartsProps {
   pendencias: Pendencia[];
+  onCollaboratorClick?: (nome: string) => void;
 }
 
 const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6"];
 
-export function SocioCharts({ pendencias }: SocioChartsProps) {
+export function SocioCharts({ pendencias, onCollaboratorClick }: SocioChartsProps) {
   // Aggregate data for Status
   const statusData = useMemo(() => {
     const counts = { OK: 0, Corrigida: 0, Pendente: 0 };
@@ -146,7 +147,17 @@ export function SocioCharts({ pendencias }: SocioChartsProps) {
         </CardHeader>
         <CardContent className="h-[350px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={colaboradorData} layout="vertical" margin={{ left: 50, right: 30, bottom: 5, top: 5 }}>
+            <BarChart 
+              data={colaboradorData} 
+              layout="vertical" 
+              margin={{ left: 50, right: 30, bottom: 5, top: 5 }}
+              onClick={(state) => {
+                if (state && state.activeLabel && onCollaboratorClick) {
+                  onCollaboratorClick(state.activeLabel);
+                }
+              }}
+              className="cursor-pointer"
+            >
               <XAxis type="number" hide />
               <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
               <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px', fontSize: '13px'}} />

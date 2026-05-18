@@ -21,6 +21,7 @@ export default function PipelineDashboard() {
   // Filtros de Data
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("all");
+  const [selectedConsultor, setSelectedConsultor] = useState<string>("all");
 
   useEffect(() => {
     if (!user || (user.role !== "admin" && user.role !== "socio")) {
@@ -38,8 +39,23 @@ export default function PipelineDashboard() {
     return () => unsub();
   }, [user, navigate]);
 
+  // Lista única de consultores para filtro dropdown
+  const consultores = useMemo(() => {
+    const nomes = new Set<string>();
+    data.forEach(item => {
+      if (item.consultor) {
+        nomes.add(item.consultor.trim());
+      }
+    });
+    return Array.from(nomes).sort();
+  }, [data]);
+
   const filteredData = useMemo(() => {
     return data.filter(item => {
+      // Filtro de Consultor
+      const matchConsultor = selectedConsultor === "all" || item.consultor === selectedConsultor;
+      if (!matchConsultor) return false;
+
       if (!item.data_vigencia) return selectedMonth === "all" && selectedYear === "all";
       
       const vigenciaStr = String(item.data_vigencia);
@@ -66,7 +82,7 @@ export default function PipelineDashboard() {
 
       return matchMonth && matchYear;
     });
-  }, [data, selectedMonth, selectedYear]);
+  }, [data, selectedMonth, selectedYear, selectedConsultor]);
 
   const months = [
     { value: "01", label: "Janeiro" },
@@ -151,7 +167,7 @@ export default function PipelineDashboard() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Filtros de Vigência */}
+            {/* Filtros de Vigência e Consultor */}
             <div className="flex items-center gap-2 bg-brand-light/50 p-1.5 rounded-lg border border-brand-blue/10">
               <Calendar className="h-4 w-4 text-brand-blue ml-2" />
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
@@ -178,11 +194,25 @@ export default function PipelineDashboard() {
                 </SelectContent>
               </Select>
 
-              {(selectedMonth !== "all" || selectedYear !== "all") && (
+              <div className="h-4 w-px bg-brand-blue/20 mx-1" />
+
+              <Select value={selectedConsultor} onValueChange={setSelectedConsultor}>
+                <SelectTrigger className="w-[160px] h-9 bg-white border-none shadow-none focus:ring-0 font-medium">
+                  <SelectValue placeholder="Filtrar Consultor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos Consultores</SelectItem>
+                  {consultores.map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {(selectedMonth !== "all" || selectedYear !== "all" || selectedConsultor !== "all") && (
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={() => { setSelectedMonth("all"); setSelectedYear("all"); }}
+                  onClick={() => { setSelectedMonth("all"); setSelectedYear("all"); setSelectedConsultor("all"); }}
                   className="h-8 w-8 p-0 text-brand-muted hover:text-red-500"
                 >
                   <FilterX className="h-4 w-4" />
@@ -256,7 +286,7 @@ export default function PipelineDashboard() {
                   <p className="text-sm">Tente ajustar os filtros ou faça o upload do CSV.</p>
                 </div>
               ) : (
-                <PipelineChart data={filteredData} />
+                <PipelineChart data={filteredData} onConsultorClick={setSelectedConsultor} />
               )}
             </CardContent>
           </Card>
@@ -266,9 +296,9 @@ export default function PipelineDashboard() {
             <CardHeader className="bg-white border-b border-borderLight">
               <CardTitle className="text-lg font-bold text-brand-blue flex items-center gap-2">
                 <Info className="h-5 w-5 text-brand-blue" />
-                Detalhamento da Volumetria {(selectedMonth !== "all" || selectedYear !== "all") && (
+                Detalhamento da Volumetria {(selectedMonth !== "all" || selectedYear !== "all" || selectedConsultor !== "all") && (
                   <span className="text-sm font-normal text-brand-muted">
-                    - {selectedMonth !== "all" ? months.find(m => m.value === selectedMonth)?.label : ""} {selectedYear !== "all" ? selectedYear : ""}
+                    - {selectedMonth !== "all" ? months.find(m => m.value === selectedMonth)?.label : ""} {selectedYear !== "all" ? selectedYear : ""} {selectedConsultor !== "all" ? `(${selectedConsultor})` : ""}
                   </span>
                 )}
               </CardTitle>

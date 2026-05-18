@@ -192,13 +192,24 @@ const Index = () => {
 
   const colaboradores = useMemo(() => {
     const map = new Map<string, { id: string; nome: string }>();
-    // Incluir todos os colaboradores (ativos ou pré-cadastrados)
+    
+    // 1. Incluir todos os colaboradores (ativos ou pré-cadastrados)
     allUsers.filter(u => u.role === "colaborador").forEach(u => {
       // Usamos u.id (que pode ser email ou UID) para garantir que possamos filtrar
       map.set(u.id, { id: u.id, nome: u.nome });
     });
-    return Array.from(map.values());
-  }, [allUsers]);
+
+    // 2. Fallback/Complemento: Extrair das próprias pendências salvas no banco
+    pendencias.forEach(p => {
+      const nome = p.colaborador_nome;
+      const id = p.colaborador_id;
+      if (nome && id && !["sem_responsavel", "sem_id", "sem atribuição", "sem_id_manual"].includes(id.toLowerCase())) {
+        map.set(id, { id, nome });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [allUsers, pendencias]);
 
   const activePendencias = useMemo(() => pendencias.filter(p => !p.isDeleted), [pendencias]);
 
@@ -973,7 +984,20 @@ const Index = () => {
         {user.role === "socio" && (
           <div className="mt-8 grid grid-cols-1 gap-8">
             <div className="w-full">
-              <SocioCharts pendencias={filteredPendencias} />
+              <SocioCharts 
+                pendencias={filteredPendencias} 
+                onCollaboratorClick={(nomeColab) => {
+                  const normalize = (s: string) => s ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
+                  const colab = colaboradores.find(c => normalize(c.nome) === normalize(nomeColab));
+                  if (colab) {
+                    setFilters(prev => ({ ...prev, colaborador_id: colab.id }));
+                    toast.success(`Filtrando colaborador: ${colab.nome}`);
+                  } else {
+                    setFilters(prev => ({ ...prev, colaborador_id: nomeColab }));
+                    toast.success(`Filtrando colaborador: ${nomeColab}`);
+                  }
+                }}
+              />
             </div>
           </div>
         )}

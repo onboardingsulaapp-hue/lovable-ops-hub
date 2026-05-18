@@ -19,6 +19,7 @@ interface PipelineData {
 
 interface PipelineChartProps {
   data: PipelineData[];
+  onConsultorClick?: (consultor: string) => void;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -29,7 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const normalize = (s: string) => s ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
 
-export function PipelineChart({ data }: PipelineChartProps) {
+export function PipelineChart({ data, onConsultorClick }: PipelineChartProps) {
   const chartData = useMemo(() => {
     const groups: Record<string, any> = {};
 
@@ -90,6 +91,12 @@ export function PipelineChart({ data }: PipelineChartProps) {
           layout="vertical"
           margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
           barSize={20}
+          onClick={(state) => {
+            if (state && state.activeLabel && onConsultorClick) {
+              onConsultorClick(state.activeLabel);
+            }
+          }}
+          className="cursor-pointer"
         >
           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
           <XAxis type="number" hide />
