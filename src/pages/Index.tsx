@@ -217,26 +217,30 @@ const Index = () => {
     let result = activePendencias;
     if (filters.colaborador_id) {
       const selectedUser = allUsers.find(u => u.id === filters.colaborador_id);
-      const normalizeName = (name: string) => name ? name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
-      const selectedNameNorm = selectedUser ? normalizeName(selectedUser.nome) : normalizeName(filters.colaborador_id);
+      const colabObj = colaboradores.find(c => c.id === filters.colaborador_id);
       
+      const normalize = (name: string) => name ? name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
+      
+      const filterIdLower = filters.colaborador_id.toLowerCase().trim();
+      const colabNameNorm = colabObj ? normalize(colabObj.nome) : normalize(filters.colaborador_id);
+
       result = result.filter((p) => {
-        const pColabId = p.colaborador_id;
-        const pColabNomeNorm = normalizeName(p.colaborador_nome);
+        const pColabId = (p.colaborador_id || "").toLowerCase().trim();
+        const pColabNomeNorm = normalize(p.colaborador_nome);
         
-        // Match por ID direto (UID ou Email)
-        if (pColabId === filters.colaborador_id) return true;
+        // 1. Match direto de ID/Email (case-insensitive)
+        if (pColabId === filterIdLower) return true;
         
+        // 2. Match por Nome normalizado do colaborador
+        if (colabNameNorm && pColabNomeNorm === colabNameNorm) return true;
+        
+        // 3. Match com as propriedades do usuário do sistema se encontrado
         if (selectedUser) {
-          // Se selecionamos um usuário, tentamos match com as propriedades dele
-          if (pColabId === selectedUser.uid) return true;
-          if (pColabId?.toLowerCase() === selectedUser.email?.toLowerCase()) return true;
-          if (pColabNomeNorm === normalizeName(selectedUser.nome)) return true;
-          if (pColabNomeNorm === normalizeName(selectedUser.email)) return true;
+          if (pColabId === (selectedUser.uid || "").toLowerCase().trim()) return true;
+          if (pColabId === (selectedUser.email || "").toLowerCase().trim()) return true;
+          if (pColabNomeNorm === normalize(selectedUser.nome)) return true;
+          if (pColabNomeNorm === normalize(selectedUser.email)) return true;
         }
-        
-        // Fallback para o valor bruto do filtro (caso não tenha achado selectedUser)
-        if (pColabNomeNorm === selectedNameNorm) return true;
 
         return false;
       });
@@ -989,13 +993,18 @@ const Index = () => {
                 onCollaboratorClick={(nomeColab) => {
                   const normalize = (s: string) => s ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
                   const colab = colaboradores.find(c => normalize(c.nome) === normalize(nomeColab));
-                  if (colab) {
-                    setFilters(prev => ({ ...prev, colaborador_id: colab.id }));
-                    toast.success(`Filtrando colaborador: ${colab.nome}`);
-                  } else {
-                    setFilters(prev => ({ ...prev, colaborador_id: nomeColab }));
-                    toast.success(`Filtrando colaborador: ${nomeColab}`);
-                  }
+                  const targetId = colab ? colab.id : nomeColab;
+                  
+                  setFilters(prev => {
+                    const alreadySelected = prev.colaborador_id === targetId;
+                    if (alreadySelected) {
+                      toast.info("Filtro de colaborador removido");
+                      return { ...prev, colaborador_id: "" };
+                    } else {
+                      toast.success(`Filtrando colaborador: ${colab ? colab.nome : nomeColab}`);
+                      return { ...prev, colaborador_id: targetId };
+                    }
+                  });
                 }}
               />
             </div>

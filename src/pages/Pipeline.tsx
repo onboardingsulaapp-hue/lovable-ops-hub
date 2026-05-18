@@ -286,7 +286,21 @@ export default function PipelineDashboard() {
                   <p className="text-sm">Tente ajustar os filtros ou faça o upload do CSV.</p>
                 </div>
               ) : (
-                <PipelineChart data={filteredData} onConsultorClick={setSelectedConsultor} />
+                <PipelineChart 
+                  data={filteredData} 
+                  onConsultorClick={(consultorName) => {
+                    setSelectedConsultor(prev => {
+                      const alreadySelected = prev === consultorName;
+                      if (alreadySelected) {
+                        toast.info("Filtro de consultor removido");
+                        return "all";
+                      } else {
+                        toast.success(`Filtrando consultor: ${consultorName}`);
+                        return consultorName;
+                      }
+                    });
+                  }} 
+                />
               )}
             </CardContent>
           </Card>
