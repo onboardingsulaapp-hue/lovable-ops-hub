@@ -135,6 +135,23 @@ export default function Financas() {
       const novasDivergencias: Divergencia[] = [];
 
       dadosTime.forEach(row => {
+        // Encontrar a coluna de vigência para checar o ano
+        let anoDaVigencia = 0;
+        const vigenciaKey = Object.keys(row).find(k => k.toLowerCase().includes("vigência") || k.toLowerCase().includes("vigencia"));
+        
+        if (vigenciaKey && row[vigenciaKey]) {
+          const val = String(row[vigenciaKey]);
+          const anoMatch = val.match(/\b(20\d\d)\b/);
+          if (anoMatch) {
+            anoDaVigencia = parseInt(anoMatch[1], 10);
+          }
+        }
+
+        // Se o ano for menor que 2026, pula (somos orientados a auditar apenas 2026 pra frente)
+        if (anoDaVigencia > 0 && anoDaVigencia < 2026) {
+          return;
+        }
+
         const particularidades = String(row["Particularidades"] || "").trim();
         const fatura = String(row["Fatura"] || "").trim();
         const razaoSocial = String(row["Razão Social do Cliente"] || "").trim();
