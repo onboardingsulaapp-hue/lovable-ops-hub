@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, FileBarChart, CircleDollarSign, LogOut } from "lucide-react";
+import { LayoutDashboard, FileBarChart, CircleDollarSign, LogOut, FileDown } from "lucide-react";
 import logoImg from "@/assets/brand/sulamerica_logo.png";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
@@ -33,6 +33,12 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
       title: "Auditoria Financeira",
       href: "/financas",
       icon: CircleDollarSign,
+      roles: ["admin"], // Restrito ao admin
+    },
+    {
+      title: "Relatório Mensal",
+      href: "/relatorio-mensal",
+      icon: FileDown,
       roles: ["admin"], // Restrito ao admin
     },
   ];

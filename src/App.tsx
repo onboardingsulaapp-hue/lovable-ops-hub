@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index.tsx";
 import Pipeline from "./pages/Pipeline.tsx";
 import Financas from "./pages/Financas.tsx";
+import RelatorioMensal from "./pages/RelatorioMensal.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { AppLayout } from "./components/AppLayout";
 
@@ -24,6 +25,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/pipeline" element={<Pipeline />} />
               <Route path="/financas" element={<Financas />} />
+              <Route path="/relatorio-mensal" element={<RelatorioMensal />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
