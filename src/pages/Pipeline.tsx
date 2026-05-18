@@ -6,6 +6,8 @@ import { PipelineChart } from "@/components/PipelineChart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { FileBarChart, Upload, Loader2, Info, ArrowLeft, Calendar, FilterX } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -19,7 +21,7 @@ export default function PipelineDashboard() {
   const [uploading, setUploading] = useState(false);
   
   // Filtros de Data
-  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedConsultor, setSelectedConsultor] = useState<string>("all");
 
@@ -56,7 +58,7 @@ export default function PipelineDashboard() {
       const matchConsultor = selectedConsultor === "all" || item.consultor === selectedConsultor;
       if (!matchConsultor) return false;
 
-      if (!item.data_vigencia) return selectedMonth === "all" && selectedYear === "all";
+      if (!item.data_vigencia) return selectedMonths.length === 0 && selectedYear === "all";
       
       const vigenciaStr = String(item.data_vigencia);
       // Tentar extrair mês e ano (formatos DD/MM/YYYY ou YYYY-MM-DD)
@@ -77,12 +79,12 @@ export default function PipelineDashboard() {
         }
       }
 
-      const matchMonth = selectedMonth === "all" || month === selectedMonth.padStart(2, "0");
+      const matchMonth = selectedMonths.length === 0 || selectedMonths.includes(month.padStart(2, "0"));
       const matchYear = selectedYear === "all" || year === selectedYear;
 
       return matchMonth && matchYear;
     });
-  }, [data, selectedMonth, selectedYear, selectedConsultor]);
+  }, [data, selectedMonths, selectedYear, selectedConsultor]);
 
   const months = [
     { value: "01", label: "Janeiro" },
@@ -170,17 +172,70 @@ export default function PipelineDashboard() {
             {/* Filtros de Vigência e Consultor */}
             <div className="flex items-center gap-2 bg-brand-light/50 p-1.5 rounded-lg border border-brand-blue/10">
               <Calendar className="h-4 w-4 text-brand-blue ml-2" />
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[130px] h-9 bg-white border-none shadow-none focus:ring-0">
-                  <SelectValue placeholder="Mês" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os Meses</SelectItem>
-                  {months.map(m => (
-                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    className="w-[150px] h-9 bg-white border-none shadow-none focus:ring-0 flex items-center justify-between px-3 text-sm font-normal text-left truncate"
+                  >
+                    <span className="truncate mr-1">
+                      {selectedMonths.length === 0 
+                        ? "Todos os Meses" 
+                        : selectedMonths.length === 1 
+                          ? months.find(m => m.value === selectedMonths[0])?.label 
+                          : `${selectedMonths.length} Meses`
+                      }
+                    </span>
+                    <span className="text-muted-foreground text-xs opacity-50">▼</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-2 bg-white border border-borderLight shadow-md rounded-md z-[100]" align="start">
+                  <div className="space-y-1">
+                    <div 
+                      className="flex items-center space-x-2 cursor-pointer hover:bg-muted/50 p-2 rounded-sm"
+                      onClick={() => setSelectedMonths([])}
+                    >
+                      <Checkbox 
+                        id="month-all" 
+                        checked={selectedMonths.length === 0} 
+                        onCheckedChange={() => setSelectedMonths([])}
+                      />
+                      <label htmlFor="month-all" className="text-sm font-medium leading-none cursor-pointer flex-1">
+                        Todos os Meses
+                      </label>
+                    </div>
+                    <div className="h-px bg-border/50 my-1" />
+                    <div className="max-h-60 overflow-y-auto space-y-0.5">
+                      {months.map((m) => {
+                        const isChecked = selectedMonths.includes(m.value);
+                        return (
+                          <div 
+                            key={m.value} 
+                            className="flex items-center space-x-2 cursor-pointer hover:bg-muted/50 p-2 rounded-sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setSelectedMonths(prev => 
+                                isChecked 
+                                  ? prev.filter(v => v !== m.value) 
+                                  : [...prev, m.value]
+                              );
+                            }}
+                          >
+                            <Checkbox 
+                              id={`month-${m.value}`} 
+                              checked={isChecked}
+                              onCheckedChange={() => {}}
+                            />
+                            <label htmlFor={`month-${m.value}`} className="text-sm font-normal leading-none cursor-pointer flex-1 select-none">
+                              {m.label}
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
 
               <Select value={selectedYear} onValueChange={setSelectedYear}>
                 <SelectTrigger className="w-[100px] h-9 bg-white border-none shadow-none focus:ring-0">
@@ -208,11 +263,11 @@ export default function PipelineDashboard() {
                 </SelectContent>
               </Select>
 
-              {(selectedMonth !== "all" || selectedYear !== "all" || selectedConsultor !== "all") && (
+              {(selectedMonths.length > 0 || selectedYear !== "all" || selectedConsultor !== "all") && (
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={() => { setSelectedMonth("all"); setSelectedYear("all"); setSelectedConsultor("all"); }}
+                  onClick={() => { setSelectedMonths([]); setSelectedYear("all"); setSelectedConsultor("all"); }}
                   className="h-8 w-8 p-0 text-brand-muted hover:text-red-500"
                 >
                   <FilterX className="h-4 w-4" />
@@ -310,9 +365,9 @@ export default function PipelineDashboard() {
             <CardHeader className="bg-white border-b border-borderLight">
               <CardTitle className="text-lg font-bold text-brand-blue flex items-center gap-2">
                 <Info className="h-5 w-5 text-brand-blue" />
-                Detalhamento da Volumetria {(selectedMonth !== "all" || selectedYear !== "all" || selectedConsultor !== "all") && (
+                Detalhamento da Volumetria {(selectedMonths.length > 0 || selectedYear !== "all" || selectedConsultor !== "all") && (
                   <span className="text-sm font-normal text-brand-muted">
-                    - {selectedMonth !== "all" ? months.find(m => m.value === selectedMonth)?.label : ""} {selectedYear !== "all" ? selectedYear : ""} {selectedConsultor !== "all" ? `(${selectedConsultor})` : ""}
+                    - {selectedMonths.length > 0 ? selectedMonths.map(v => months.find(m => m.value === v)?.label).join(", ") : ""} {selectedYear !== "all" ? selectedYear : ""} {selectedConsultor !== "all" ? `(${selectedConsultor})` : ""}
                   </span>
                 )}
               </CardTitle>
