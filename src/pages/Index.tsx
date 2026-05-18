@@ -195,16 +195,20 @@ const Index = () => {
     
     // 1. Incluir todos os colaboradores (ativos ou pré-cadastrados)
     allUsers.filter(u => u.role === "colaborador").forEach(u => {
-      // Usamos u.id (que pode ser email ou UID) para garantir que possamos filtrar
-      map.set(u.id, { id: u.id, nome: u.nome });
+      if (u.nome) {
+        const nomeClean = u.nome.trim();
+        const key = nomeClean.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+        map.set(key, { id: key, nome: nomeClean });
+      }
     });
 
     // 2. Fallback/Complemento: Extrair das próprias pendências salvas no banco
     pendencias.forEach(p => {
       const nome = p.colaborador_nome;
-      const id = p.colaborador_id;
-      if (nome && id && !["sem_responsavel", "sem_id", "sem atribuição", "sem_id_manual"].includes(id.toLowerCase())) {
-        map.set(id, { id, nome });
+      if (nome && !["sem_responsavel", "sem_id", "sem atribuição", "sem_id_manual", "n/a", "-", ""].includes(nome.toLowerCase().trim())) {
+        const nomeClean = nome.trim();
+        const key = nomeClean.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+        map.set(key, { id: key, nome: nomeClean });
       }
     });
 
@@ -216,31 +220,30 @@ const Index = () => {
   const filteredPendencias = useMemo(() => {
     let result = activePendencias;
     if (filters.colaborador_id) {
-      const selectedUser = allUsers.find(u => u.id === filters.colaborador_id);
-      const colabObj = colaboradores.find(c => c.id === filters.colaborador_id);
-      
       const normalize = (name: string) => name ? name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
+      const filterNameNorm = normalize(filters.colaborador_id);
       
-      const filterIdLower = filters.colaborador_id.toLowerCase().trim();
-      const colabNameNorm = colabObj ? normalize(colabObj.nome) : normalize(filters.colaborador_id);
+      // Encontrar todos os IDs (UIDs e Emails) associados a esse nome em allUsers para correspondência cruzada
+      const matchedUsers = allUsers.filter(u => normalize(u.nome) === filterNameNorm);
+      const matchedIds = new Set<string>();
+      matchedUsers.forEach(u => {
+        if (u.id) matchedIds.add(u.id.toLowerCase().trim());
+        if (u.uid) matchedIds.add(u.uid.toLowerCase().trim());
+        if (u.email) matchedIds.add(u.email.toLowerCase().trim());
+      });
 
       result = result.filter((p) => {
-        const pColabId = (p.colaborador_id || "").toLowerCase().trim();
         const pColabNomeNorm = normalize(p.colaborador_nome);
+        const pColabId = (p.colaborador_id || "").toLowerCase().trim();
         
-        // 1. Match direto de ID/Email (case-insensitive)
-        if (pColabId === filterIdLower) return true;
+        // 1. Match pelo nome exato normalizado
+        if (pColabNomeNorm === filterNameNorm) return true;
         
-        // 2. Match por Nome normalizado do colaborador
-        if (colabNameNorm && pColabNomeNorm === colabNameNorm) return true;
-        
-        // 3. Match com as propriedades do usuário do sistema se encontrado
-        if (selectedUser) {
-          if (pColabId === (selectedUser.uid || "").toLowerCase().trim()) return true;
-          if (pColabId === (selectedUser.email || "").toLowerCase().trim()) return true;
-          if (pColabNomeNorm === normalize(selectedUser.nome)) return true;
-          if (pColabNomeNorm === normalize(selectedUser.email)) return true;
-        }
+        // 2. Match se o ID da pendência coincidir com algum UID ou e-mail cadastrado/pré-cadastrado do usuário
+        if (pColabId && matchedIds.has(pColabId)) return true;
+
+        // 3. Fallback: se o ID da pendência for idêntico ao valor de filtro
+        if (pColabId === filterNameNorm.toLowerCase()) return true;
 
         return false;
       });
