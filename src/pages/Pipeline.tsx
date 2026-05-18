@@ -141,9 +141,6 @@ export default function PipelineDashboard() {
       <div className="bg-white border-b border-borderLight py-6 px-4 md:px-8 shadow-sm">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="text-brand-muted hover:text-brand-blue">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
             <div>
               <h1 className="text-2xl font-bold text-brand-blue flex items-center gap-2">
                 <FileBarChart className="h-6 w-6" />

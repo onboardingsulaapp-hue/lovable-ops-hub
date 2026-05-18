@@ -47,5 +47,26 @@
         "Aditivo Finalizado ?",
         "Adtivo Finalizado?",
         "Aditivo Finalizado?"
+    ],
+    "Razão Social do Cliente": [
+        "Razão Social do Cliente",
+        "Razao Social do Cliente",
+        "Razão Social",
+        "Razao Social"
+    ],
+    "Nome Empresa": [
+        "Nome Empresa",
+        "Nome da Empresa",
+        "Empresa"
+    ],
+    "Particularidades": [
+        "Particularidades",
+        "Particularidade"
+    ],
+    "Fatura": [
+        "Fatura"
+    ],
+    "Faturamento": [
+        "Faturamento"
     ]
 }

@@ -751,64 +751,7 @@ const Index = () => {
       {/* Faixa superior institucional (Laranja SulAmérica) */}
       <div className="w-full h-1.5 bg-brand-orange z-20 relative"></div>
 
-      <header className="bg-white sticky top-0 z-10 border-b border-borderLight shadow-sm transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between">
-          <div className="flex items-center gap-4 sm:gap-6">
-            <img src={logoImg} alt="SulAmérica" className="h-[38px] object-contain" />
 
-            <div className="h-8 w-px bg-borderLight hidden sm:block"></div>
-
-            <div className="hidden sm:flex flex-col">
-              <h1 className="text-base font-bold text-brand-blue tracking-tight leading-none uppercase">Operações Corporativas</h1>
-              <span className="text-[10px] text-brand-orange font-bold uppercase tracking-widest mt-1">Conformidade e Pendências</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            {(user.role === "admin" || user.role === "socio") && (
-              <div className="flex items-center gap-2 sm:gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate("/pipeline")}
-                  className="bg-white border-brand-blue text-brand-blue hover:bg-brand-light font-bold hidden md:flex items-center gap-2"
-                >
-                  <FileBarChart className="h-4 w-4" />
-                  Volumetria
-                </Button>
-                {user.role === "admin" && (
-                  <>
-                    <AdminLogsPanel logs={adminLogs} />
-                    <CollaboratorManagerDialog
-                      users={allUsers}
-                      onAdd={handleAddUser}
-                      onEdit={handleEditUser}
-                      onDelete={handleDeleteUser}
-                    />
-                  </>
-                )}
-              </div>
-            )}
-            <div className="h-6 w-px bg-borderLight mx-1 hidden sm:block"></div>
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col items-end mr-1">
-                <span className="font-semibold text-brand-blue text-sm">{user.nome}</span>
-                <span className="text-[10px] text-brand-muted uppercase font-bold tracking-tighter">
-                  {user.role === "admin" ? "Administrador" : user.role === "socio" ? "Sócio Gestor" : "Colaborador"}
-                </span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => logout()}
-                className="text-brand-muted hover:bg-brand-light hover:text-brand-orange h-[38px] w-[38px] rounded-full transition-colors"
-                title="Sair do Sistema"
-              >
-                <LogOut className="h-[18px] w-[18px]" strokeWidth={2.5} />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
 
