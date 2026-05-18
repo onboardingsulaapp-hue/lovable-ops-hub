@@ -747,13 +747,40 @@ const Index = () => {
   const colabsComPendenciasUnicos = new Set(filteredPendencias.filter(p => (p.status?.toLowerCase() || "") === "pendente").map(p => p.colaborador_nome)).size;
 
   return (
-    <div className="min-h-screen bg-brand-light font-sans text-brand-blue">
-      {/* Faixa superior institucional (Laranja SulAmérica) */}
-      <div className="w-full h-1.5 bg-brand-orange z-20 relative"></div>
+    <div className="w-full font-sans text-brand-blue pb-12">
+      {/* Header específico da página */}
+      <div className="bg-white border-b border-borderLight py-6 px-4 sm:px-8 lg:px-12 shadow-sm">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-brand-blue flex items-center gap-2">
+              Painel Operacional
+            </h1>
+            <div className="text-[12px] text-brand-muted flex items-center gap-2 uppercase font-semibold tracking-wider mt-1">
+              <span className="hover:text-brand-orange cursor-pointer transition-colors">Início</span>
+              <span className="text-border">/</span>
+              <span className="text-brand-blue">Painel de Pendências</span>
+            </div>
+          </div>
 
+          {(user.role === "admin" || user.role === "socio") && (
+            <div className="flex items-center gap-2 sm:gap-3">
+              {user.role === "admin" && (
+                <>
+                  <AdminLogsPanel logs={adminLogs} />
+                  <CollaboratorManagerDialog
+                    users={allUsers}
+                    onAdd={handleAddUser}
+                    onEdit={handleEditUser}
+                    onDelete={handleDeleteUser}
+                  />
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
+      <main className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-8 space-y-8 animate-fade-in">
 
         {listenerError && (
           <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md shadow-sm mb-4">
@@ -767,12 +794,6 @@ const Index = () => {
         )}
 
         <div className="space-y-6">
-          <div className="text-[12px] text-brand-muted flex items-center gap-2 uppercase font-semibold tracking-wider">
-            <span className="hover:text-brand-orange cursor-pointer transition-colors">Início</span>
-            <span className="text-border">/</span>
-            <span className="text-brand-blue">Painel de Pendências</span>
-          </div>
-
           <div className="bg-white p-8 rounded-[12px] border border-border/60 shadow-[0px_4px_16px_rgba(29,46,93,0.04)] flex items-center justify-between flex-wrap gap-6 overflow-hidden relative group">
             <div className="absolute top-0 left-0 w-1.5 h-full bg-brand-orange" />
             <div className="relative z-10">
