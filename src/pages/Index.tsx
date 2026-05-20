@@ -613,13 +613,10 @@ const Index = () => {
               </table>
 
               <div style="text-align: center; margin: 32px 0;">
-                <p style="font-size: 14px; color: #737D9A; margin-bottom: 16px; font-weight: 500;">Acesse as planilhas abaixo para realizar as correções:</p>
-                <div style="display: inline-flex; gap: 16px; flex-wrap: wrap; justify-content: center;">
+                <p style="font-size: 14px; color: #737D9A; margin-bottom: 16px; font-weight: 500;">Acesse a planilha abaixo para realizar as correções:</p>
+                <div style="display: inline-flex; justify-content: center;">
                   <a href="https://docs.google.com/spreadsheets/d/1DsqQKV45tM6DlTZA-9D3HN20u_57ebzfnF7aufIYHWY/edit?usp=sharing" target="_blank" style="background-color: #1D2E5D; color: white; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">
                     Planilha de Implantação
-                  </a>
-                  <a href="https://docs.google.com/spreadsheets/d/114TPTZMAuF_UTDNmDm55S5Otz1sa612IAENl-XZo33M/edit?usp=sharing" target="_blank" style="background-color: #F68B2C; color: white; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">
-                    Planilha Temporária
                   </a>
                 </div>
               </div>
