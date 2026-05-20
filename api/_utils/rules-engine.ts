@@ -159,10 +159,12 @@ export function generateFingerprint(row: any, rulesJson: any): string {
 }
 
 /**
- * Verifica se a linha passa pelo Gate
- */
-export function passesGate(row: any, rulesJson: any): boolean {
+ * Verifica se a linha export function passesGate(row: any, rulesJson: any): boolean {
   const field = rulesJson.gate.field;
+  if (!(field in row)) {
+    console.log(`[Gate] Linha ignorada. Campo de status '${field}' não existe no arquivo.`);
+    return false;
+  }
   const allowed = (rulesJson.gate.allowed as string[]).map(s => compareNormalize(s));
   const rawValue = (row[field] || "").toString();
   const status = compareNormalize(rawValue);
@@ -177,8 +179,8 @@ export function passesGate(row: any, rulesJson: any): boolean {
   // Check required_for_processing if defined
   const requiredFields = (rulesJson.gate as any).required_for_processing || [];
   for (const f of requiredFields) {
-    if (isEmpty(row[f])) {
-      console.log(`[Gate] Linha ignorada. Campo obrigatório para processamento '${f}' está vazio.`);
+    if (!(f in row) || isEmpty(row[f])) {
+      console.log(`[Gate] Linha ignorada. Campo obrigatório para processamento '${f}' está vazio ou ausente.`);
       return false;
     }
   }
@@ -216,6 +218,9 @@ const ADITIVO_PENDENCY_FIELDS = [
 ];
 
 function isAditivoEmTratativa(row: any, rulesJson: any): { isTratativa: boolean, triggerVal: string, finalizadoVal: string } {
+  if (!(ADITIVO_TRIGGER_FIELD in row)) {
+    return { isTratativa: false, triggerVal: "", finalizadoVal: "" };
+  }
   const triggerVal = row[ADITIVO_TRIGGER_FIELD];
   const triggerNorm = normalizeSelect(triggerVal);
   
@@ -255,6 +260,9 @@ export function evaluateRules(row: any, tipoOrigem: 'nova' | 'antiga' = 'antiga'
 
     // 1. Required fields
     for (const field of (rulesJson.required_fields as string[])) {
+      if (!(field in row)) {
+        continue;
+      }
       if (isEmpty(row[field])) {
         itens.push(field);
       }
@@ -266,6 +274,9 @@ export function evaluateRules(row: any, tipoOrigem: 'nova' | 'antiga' = 'antiga'
     const triggerNorm = normalizeSelect(row[ADITIVO_TRIGGER_FIELD]);
 
     for (const cond of (rulesJson.conditional_required as any[])) {
+      if (!(cond.if.field in row)) {
+        continue;
+      }
       const actualValue = normalizeSelect(row[cond.if.field]);
       const triggerValues = (cond.if.equals_any as string[]).map(v => normalizeSelect(v));
 
@@ -274,11 +285,15 @@ export function evaluateRules(row: any, tipoOrigem: 'nova' | 'antiga' = 'antiga'
         if (cond.if.field === ADITIVO_TRIGGER_FIELD && aditivoETratativa) {
           // Adicionamos aos "avisos" para visibilidade
           for (const reqField of (cond.then_require as string[])) {
+            if (!(reqField in row)) continue;
             if (!emTratativa.includes(reqField)) emTratativa.push(reqField);
           }
           continue;
         }
         for (const reqField of (cond.then_require as string[])) {
+          if (!(reqField in row)) {
+            continue;
+          }
           const fieldValue = row[reqField];
           // Campo genérico "Em Tratativa"
           if (isInProgress(fieldValue, rulesJson)) {
@@ -293,12 +308,14 @@ export function evaluateRules(row: any, tipoOrigem: 'nova' | 'antiga' = 'antiga'
     }
 
     // 3. Marketing block
-    const marketingFields = rulesJson.marketing.fields as string[];
-    const anyMarketingEmpty = marketingFields.some(f => isEmpty(row[f]));
-    if (anyMarketingEmpty) {
-      const mktName = rulesJson.marketing.pendencia_name_if_any_empty;
-      if (!itens.includes(mktName)) {
-        itens.push(mktName);
+    const marketingFields = (rulesJson.marketing.fields as string[]).filter(f => f in row);
+    if (marketingFields.length > 0) {
+      const anyMarketingEmpty = marketingFields.some(f => isEmpty(row[f]));
+      if (anyMarketingEmpty) {
+        const mktName = rulesJson.marketing.pendencia_name_if_any_empty;
+        if (!itens.includes(mktName)) {
+          itens.push(mktName);
+        }
       }
     }
 
