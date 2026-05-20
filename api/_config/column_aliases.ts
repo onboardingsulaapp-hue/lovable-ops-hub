@@ -1,9 +1,22 @@
 export const COLUMN_ALIASES = {
+    "Razão Social do Cliente": [
+        "Razão Social do Cliente",
+        "Razão Social",
+        "Empresa",
+        "Nome da Empresa"
+    ],
+    "Produto": [
+        "PRODUTO",
+        "Produto"
+    ],
     "Inicio da Vigência de Contrato": [
         "Inicio da Vigência de Contrato",
         "Início da Vigência de Contrato",
         "Inicio Vigencia Contrato",
-        "Início Vigência Contrato"
+        "Início Vigência Contrato",
+        "DATA DE VIGÊNCIA",
+        "Data de Vigência",
+        "Vigência"
     ],
     "Status da Empresa": [
         "Status da Empresa",
@@ -12,7 +25,8 @@ export const COLUMN_ALIASES = {
         "Situação",
         "Situacao",
         "Status do Contrato",
-        "Status da Proposta"
+        "Status da Proposta",
+        "STATUS DA IMPLANTAÇÃO (ONBOARDING)"
     ],
     "Data do envio do e-mail de Liberação": [
         "Data do envio do e-mail de Liberação",
