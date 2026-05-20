@@ -132,16 +132,27 @@ export function parseDate(dateStr: string): Date | null {
  * Resolve o nome da coluna caso existam aliases
  */
 function getCanonicalColumn(colName: string, tipoOrigem: 'nova' | 'antiga' = 'antiga'): string {
-  const aliasesJson = tipoOrigem === 'nova' ? aliasesNova : aliasesAntiga;
   const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   const inputNorm = norm(colName);
-  
-  for (const [canonical, aliases] of Object.entries(aliasesJson)) {
+
+  // 1. Tenta encontrar no conjunto primário correspondente ao tipoOrigem
+  const primaryAliases = tipoOrigem === 'nova' ? aliasesNova : aliasesAntiga;
+  for (const [canonical, aliases] of Object.entries(primaryAliases)) {
     if (norm(canonical) === inputNorm) return canonical;
     if ((aliases as string[]).some(a => norm(a) === inputNorm)) {
       return canonical;
     }
   }
+
+  // 2. Fallback: Se não encontrou no primário, tenta buscar no outro conjunto (suporta planilha com cabeçalhos mistos/unificados)
+  const secondaryAliases = tipoOrigem === 'nova' ? aliasesAntiga : aliasesNova;
+  for (const [canonical, aliases] of Object.entries(secondaryAliases)) {
+    if (norm(canonical) === inputNorm) return canonical;
+    if ((aliases as string[]).some(a => norm(a) === inputNorm)) {
+      return canonical;
+    }
+  }
+
   return colName.trim();
 }
 
