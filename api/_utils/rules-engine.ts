@@ -159,7 +159,9 @@ export function generateFingerprint(row: any, rulesJson: any): string {
 }
 
 /**
- * Verifica se a linha export function passesGate(row: any, rulesJson: any): boolean {
+ * Verifica se a linha passa pelo Gate
+ */
+export function passesGate(row: any, rulesJson: any): boolean {
   const field = rulesJson.gate.field;
   if (!(field in row)) {
     console.log(`[Gate] Linha ignorada. Campo de status '${field}' não existe no arquivo.`);
@@ -343,7 +345,8 @@ async function upsertTratativaAlert(
   colaboradorNome: string,
   colaboradorId: string | null,
   emTratativa: string[],
-  aditivoEmTratativa: boolean
+  aditivoEmTratativa: boolean,
+  tipoOrigem: 'nova' | 'antiga'
 ) {
   console.log(`[Alertas] Iniciando upsert de alerta para fingerprint: ${fp}`);
   const alertId = `tratativa_${fp}`;
@@ -485,7 +488,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string, ti
 
   // ── ALERTA: Itens Em Tratativa / Aditivo ──────────────────────────
   if (aditivoEmTratativa || emTratativa.length > 0) {
-    await upsertTratativaAlert(db, fp, cleanedRow, representante, collabId, emTratativa, aditivoEmTratativa).catch(e => {
+    await upsertTratativaAlert(db, fp, cleanedRow, representante, collabId, emTratativa, aditivoEmTratativa, tipoOrigem).catch(e => {
       console.error(`[Alertas] Falha ao gravar alerta para ${fp}:`, e.message);
     });
   }
