@@ -75,18 +75,44 @@ function compareNormalize(text: string): string {
 /**
  * Converte string de data (DD/MM/YYYY ou YYYY-MM-DD) em objeto Date
  */
-function parseDate(dateStr: string): Date | null {
-  if (!dateStr) return null;
-  const clean = dateStr.trim();
+export function toTitleCase(str: string): string {
+  if (!str) return "";
+  return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+export function standardizeCollaboratorName(name: string): string {
+  if (!name) return "";
+  const trimmed = name.trim();
+  const norm = trimmed.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
   
-  // Formato brasileiro DD/MM/YYYY
-  const brMatch = clean.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const firstWord = norm.split(/\s+/)[0];
+  const exclusivas = ["JOAB", "KATIA", "HELENA", "BEATRIZ", "MISLAINE"];
+  
+  if (exclusivas.includes(firstWord)) {
+    return firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
+  }
+  
+  if (firstWord === "PAMELA") {
+    return "Pamela Posseti";
+  }
+  
+  return toTitleCase(trimmed);
+}
+
+export function parseDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const clean = dateStr.trim().split(/[\sT]+/)[0];
+  
+  // Formato brasileiro DD/MM/YYYY ou DD/MM/YY
+  const brMatch = clean.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (brMatch) {
     const day = parseInt(brMatch[1], 10);
     const month = parseInt(brMatch[2], 10) - 1;
-    const year = parseInt(brMatch[3], 10);
+    let year = parseInt(brMatch[3], 10);
+    if (year < 100) {
+      year += 2000;
+    }
     const d = new Date(year, month, day);
-    // Validar se a data é real (ex: evitar 31/02)
     if (d.getFullYear() === year && d.getMonth() === month && d.getDate() === day) {
       return d;
     }
@@ -353,14 +379,15 @@ async function upsertTratativaAlert(
 /**
  * Resolve colaborador_id
  */
-export function resolveCollaborator(name: string): { id: string | null, mapped: boolean } {
-  const normalized = normalizeCollabName(name);
+export function resolveCollaborator(name: string): { id: string | null, mapped: boolean, standardName: string } {
+  const stdName = standardizeCollaboratorName(name);
+  const normalized = normalizeCollabName(stdName);
   const uid = (collaboratorsJson as any)[normalized];
   
   if (uid && uid !== "PREENCHER_UID") {
-    return { id: uid, mapped: true };
+    return { id: uid, mapped: true, standardName: stdName };
   }
-  return { id: null, mapped: false };
+  return { id: null, mapped: false, standardName: stdName };
 }
 
 /**
@@ -371,7 +398,7 @@ export async function processRow(row: any, lineNum: number, adminUid: string, ti
   const rulesJson = tipoOrigem === 'nova' ? rulesNova : rulesAntiga;
   const cleanedRow = cleanRow(row, tipoOrigem);
   
-  // Extrair a Vigência para filtrar (Permitir apenas >= 2026 e < hoje)
+  // Extrair a Vigência para filtrar (Permitir apenas >= 2026 e < hoje para pendências)
   const vigenciaStr = (cleanedRow["Inicio da Vigência de Contrato"] || "").toString();
   const dataVigencia = parseDate(vigenciaStr);
   const hoje = new Date();
@@ -400,6 +427,11 @@ export async function processRow(row: any, lineNum: number, adminUid: string, ti
         console.log(`[Regra Data] Linha ignorada (fallback ano). Ano ${anoVigencia} <= 2025.`);
         return { action: 'ignored_by_year' };
       }
+    } else {
+      if (vigenciaStr) {
+        console.log(`[Regra Data] Linha ignorada. Data de vigência inválida: "${vigenciaStr}".`);
+        return { action: 'ignored_by_invalid_date' };
+      }
     }
   }
 
@@ -409,9 +441,9 @@ export async function processRow(row: any, lineNum: number, adminUid: string, ti
   // Rules
   const { itens, emTratativa, aditivoEmTratativa, aditivoSim, aditivoFinalizadoVal } = evaluateRules(cleanedRow, tipoOrigem);
 
-  // Resolve Collab (Mudança para CONSULTOR DE ONBOARDING)
-  const representante = cleanedRow["CONSULTOR DE ONBOARDING"] || "";
-  const { id: collabId, mapped } = resolveCollaborator(representante);
+  // Resolve Collab (Mudança para CONSULTOR DE ONBOARDING com padronização de nome)
+  const representanteRaw = cleanedRow["CONSULTOR DE ONBOARDING"] || "";
+  const { id: collabId, mapped, standardName: representante } = resolveCollaborator(representanteRaw);
 
   if (!mapped && itens.length > 0) {
     itens.push("Sem responsável (mapear consultor onboarding)");

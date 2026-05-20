@@ -253,12 +253,12 @@ export default function UploadNovaCsvPanel() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
             <h3 style={{ color: "#f1f5f9", fontSize: "16px", fontWeight: 600 }}>
-              📝 Sincronizar Planilha Nova (Google Forms)
+              📝 Sincronizar Planilha Geral
             </h3>
-            <span style={{ fontSize: '10px', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: '4px' }}>EXCLUSIVO</span>
+            <span style={{ fontSize: '10px', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: '4px' }}>UNIFICADO</span>
         </div>
         <p style={{ color: "#94a3b8", fontSize: "13px", marginBottom: "20px" }}>
-          Use este painel apenas para arquivos exportados do Google Forms.
+          Sincronize as Pendências e a Pipeline da Planilha de forma unificada.
         </p>
 
         <input
@@ -284,7 +284,7 @@ export default function UploadNovaCsvPanel() {
             transition: "all 0.2s",
           }}
         >
-          Selecionar arquivo .csv (Google Forms)
+          Selecionar arquivo .csv (Geral)
         </label>
 
         {parseError && (
@@ -314,7 +314,7 @@ export default function UploadNovaCsvPanel() {
             }}
           >
             <p style={{ color: "#6ee7b7", fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>
-              ✅ Arquivo Nova Planilha Detectado
+              ✅ Arquivo Planilha Geral Detectado
             </p>
             <div style={{ color: "#94a3b8", fontSize: "13px", display: "flex", flexDirection: "column", gap: "4px" }}>
               <span>📄 Arquivo: <strong style={{ color: "#e2e8f0" }}>{selectedFile?.name}</strong></span>
@@ -360,7 +360,7 @@ export default function UploadNovaCsvPanel() {
                   transition: "all 0.2s",
                 }}
               >
-                {uploading ? `🚀 Sincronizando Nova… ${uploadProgress > 0 ? `${uploadProgress}%` : ""}` : "🚀 Iniciar Sincronização Nova"}
+                {uploading ? `🚀 Sincronizando Planilha Geral… ${uploadProgress > 0 ? `${uploadProgress}%` : ""}` : "🚀 Iniciar Sincronização Geral"}
               </button>
             )}
           </div>
@@ -377,7 +377,7 @@ export default function UploadNovaCsvPanel() {
         }}
       >
         <h3 style={{ color: "#f1f5f9", marginBottom: "16px", fontSize: "16px", fontWeight: 600 }}>
-          🕒 Histórico Planilha Nova
+          🕒 Histórico de Sincronizações
         </h3>
 
         {recentJobs.length === 0 ? (
@@ -411,12 +411,23 @@ export default function UploadNovaCsvPanel() {
                 )}
 
                 {job.status === "success" && job.result && (
-                  <div style={{ marginTop: "8px", color: "#6ee7b7", fontSize: "12px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                    <span>Total: {job.result.linhas_total}</span>
-                    <span>•</span>
-                    <span>Criadas: {job.result.criadas}</span>
-                    <span>•</span>
-                    <span>Atualizadas: {job.result.atualizadas}</span>
+                  <div style={{ marginTop: "8px", color: "#6ee7b7", fontSize: "12px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                      <strong>Pendências:</strong>
+                      <span>Total: {job.result.linhas_total}</span>
+                      <span>•</span>
+                      <span>Criadas: {job.result.criadas}</span>
+                      <span>•</span>
+                      <span>Atualizadas: {job.result.atualizadas}</span>
+                    </div>
+                    {job.result.pipeline_stats && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", color: "#60a5fa" }}>
+                        <strong>Pipeline:</strong>
+                        <span>Processadas: {job.result.pipeline_stats.processed}</span>
+                        <span>•</span>
+                        <span>Removidas: {job.result.pipeline_stats.deleted}</span>
+                      </div>
+                    )}
                   </div>
                 )}
                 

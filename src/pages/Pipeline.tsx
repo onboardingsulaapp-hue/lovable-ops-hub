@@ -9,16 +9,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { FileBarChart, Upload, Loader2, Info, ArrowLeft, Calendar, FilterX } from "lucide-react";
+import { FileBarChart, Info, ArrowLeft, Calendar, FilterX } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export default function PipelineDashboard() {
   const { profile: user } = useAuth();
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   
   // Filtros de Data
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
@@ -102,48 +100,6 @@ export default function PipelineDashboard() {
   ];
 
   const years = ["2026", "2027", "2028"];
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, source: 'tradicional' | 'nova') => {
-    // ... (rest of the upload logic remains the same)
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.name.endsWith(".csv")) {
-      toast.error("Por favor, selecione um arquivo .csv");
-      return;
-    }
-
-    setUploading(true);
-    const toastId = toast.loading(`Sincronizando Volumetria (${source === 'nova' ? 'Forms' : 'Tradicional'})...`);
-
-    try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error("Sessão expirada.");
-
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetch(`/api/sync_pipeline?source=${source}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${idToken}` },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Falha na sincronização");
-      }
-
-      const result = await response.json();
-      toast.success(`Pipeline ${source} atualizado! Processados: ${result.processed}, Removidos: ${result.deleted}`, { id: toastId });
-    } catch (err: any) {
-      console.error("Upload Error:", err);
-      toast.error(err.message, { id: toastId });
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
 
   if (loading) {
     return (
@@ -275,51 +231,6 @@ export default function PipelineDashboard() {
               )}
             </div>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              onChange={(e) => {
-                const target = e.target as any;
-                const source = target.dataset.source;
-                handleFileUpload(e, source);
-              }}
-              className="hidden"
-              id="pipeline-csv-input"
-            />
-            
-            <div className="flex gap-2">
-              <Button
-                disabled={uploading}
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.dataset.source = 'tradicional';
-                    fileInputRef.current.click();
-                  }
-                }}
-                className="border-brand-blue text-brand-blue hover:bg-brand-light font-bold h-9"
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Tradicional
-              </Button>
-
-              <Button
-                disabled={uploading}
-                size="sm"
-                onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.dataset.source = 'nova';
-                    fileInputRef.current.click();
-                  }
-                }}
-                className="bg-brand-blue hover:bg-brand-blue/90 text-white font-bold h-9"
-              >
-                {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-                Nova (Forms)
-              </Button>
-            </div>
           </div>
         </div>
       </div>
@@ -338,7 +249,7 @@ export default function PipelineDashboard() {
                 <div className="h-[400px] flex flex-col items-center justify-center text-brand-muted opacity-60">
                   <FileBarChart className="h-12 w-12 mb-4" />
                   <p className="font-medium">Nenhuma empresa encontrada para este período.</p>
-                  <p className="text-sm">Tente ajustar os filtros ou faça o upload do CSV.</p>
+                  <p className="text-sm">Tente ajustar os filtros ou sincronize a planilha geral na Home.</p>
                 </div>
               ) : (
                 <PipelineChart 

@@ -1,7 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { getFirestore, verifyFirebaseIdToken } from './_utils/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
-import { cleanRow, processRow } from './_utils/rules-engine.js';
+import { cleanRow, processRow, parseDate, standardizeCollaboratorName } from './_utils/rules-engine.js';
 import { getCsvHeaderOffset } from './_utils/csv-helper.js';
 import { parse } from 'csv-parse/sync';
 import Busboy from 'busboy';
@@ -11,6 +11,8 @@ export const config = {
     bodyParser: false,
   },
 };
+
+const normalizeForFp = (s: string) => s ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim().replace(/\s+/g, "_").replace(/\//g, "_") : "";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -48,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       requested_at: FieldValue.serverTimestamp(),
       started_at: FieldValue.serverTimestamp(),
       file: {
-        name: 'Google Forms Upload',
+        name: 'Planilha Geral Upload',
         size: parseInt(req.headers['content-length'] || '0'),
         contentType: 'text/csv'
       }
@@ -66,7 +68,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       status_unicos_encontrados: {} as Record<string, number>,
       exemplos_de_pendencia: [] as any[],
       exemplos_ignorados: [] as any[],
-      erros_processamento: [] as any[]
+      erros_processamento: [] as any[],
+      pipeline_stats: {
+        processed: 0,
+        deleted: 0
+      }
     };
 
     return new Promise((resolve) => {
@@ -97,7 +103,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               const firstRecord = records[0];
               const rawHeaders = Object.keys(firstRecord);
               
-              // Validação de cabeçalho específica para Nova Planilha
+              // Validação de cabeçalho baseada no formato da planilha (Nova / Geral)
               const firstRowCleaned = cleanRow(firstRecord, 'nova');
               const mappedHeaders = Object.keys(firstRowCleaned);
 
@@ -110,25 +116,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
               if (!hasRazao || !hasVigencia) {
                 result.erros_processamento.push({
-                   erro: "Este arquivo não parece ser da Planilha Nova (Campos obrigatórios não identificados).",
+                   erro: "Este arquivo não possui as colunas necessárias para processamento.",
                    detalhes: `Colunas mapeadas: ${mappedHeaders.join(", ")}`,
                    severidade: "critical"
                 });
               }
             }
 
+            let pipelineBatch = db.batch();
+            let pipelineOpCount = 0;
+            const seenPipelineFps = new Set<string>();
+
             for (const rawRow of records) {
               result.linhas_total++;
-              const row = cleanRow(rawRow, 'nova');
+              const lineInFile = fromLine + result.linhas_total;
+              
+              // Definir tipo de regras baseado na linha do corte (1201)
+              const tipoRegra = lineInFile <= 1201 ? 'antiga' : 'nova';
+              const row = cleanRow(rawRow, tipoRegra);
 
               try {
                 const rawStatus = row['Status da Empresa'] || 'N/A';
                 result.status_unicos_encontrados[rawStatus] = (result.status_unicos_encontrados[rawStatus] || 0) + 1;
 
-                const lineInFile = fromLine + result.linhas_total;
-                const resRow = await processRow(row, lineInFile, uid, 'nova');
+                // ── 1. Geração de Pendências ──
+                const resRow = await processRow(rawRow, lineInFile, uid, tipoRegra);
 
-                if (resRow.action === 'ignored_by_gate' || resRow.action === 'ignored_by_year') {
+                if (resRow.action === 'ignored_by_gate' || resRow.action === 'ignored_by_year' || resRow.action === 'ignored_by_future' || resRow.action === 'ignored_by_invalid_date') {
                   result.ignoradas_por_status++;
                   if (result.exemplos_ignorados.length < 5) {
                     result.exemplos_ignorados.push({
@@ -152,6 +166,73 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                   }
                 }
+
+                // ── 2. Volumetria da Pipeline ──
+                const razao = row["Razão Social do Cliente"] || "N/A";
+                const produto = row["Produto"] || "N/A";
+                const consultorRaw = row["CONSULTOR DE ONBOARDING"];
+                const rawVigencia = row["Inicio da Vigência de Contrato"] || "";
+
+                if (consultorRaw && String(consultorRaw).trim() !== "" && String(consultorRaw).trim() !== "-") {
+                  const consultorTrim = String(consultorRaw).trim().toUpperCase();
+                  const blacklist = ["LEGADO", "DECLINADO", "PENDENTE", "N/A", "N/H", "NH", "LIXO", "TESTE"];
+                  const isBlacklisted = blacklist.some(b => consultorTrim === b || consultorTrim.includes(`*${b}*`));
+                  const isIdTecnico = consultorTrim.length > 20 && /[0-9]/.test(consultorTrim);
+
+                  if (!isBlacklisted && !isIdTecnico) {
+                    const normalizedStatus = rawStatus.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim().replace(/\s+/g, " ");
+                    const isDeclinada = normalizedStatus.includes("DECLINADA") || normalizedStatus.includes("CANCELADA");
+                    const isConcluida = normalizedStatus.includes("CONCLUIDA") || normalizedStatus.includes("CONCLUIDO") || normalizedStatus.includes("COMPLETA");
+                    const isAtivo = normalizedStatus.includes("CURSO") || 
+                                    normalizedStatus.includes("OPERACAO") || 
+                                    normalizedStatus.includes("ANDAMENTO") ||
+                                    normalizedStatus.includes("FUTURA") || 
+                                    normalizedStatus.includes("IMPLANTACAO") ||
+                                    normalizedStatus.includes("CLIENTE") || 
+                                    normalizedStatus.includes("CORRETORA");
+
+                    if (isAtivo && !isDeclinada && !isConcluida) {
+                      // Validar data da vigência para pipeline (vigencia >= 2026-01-01)
+                      const dataVigencia = parseDate(String(rawVigencia));
+                      let year = 0;
+                      if (dataVigencia) {
+                        year = dataVigencia.getFullYear();
+                      } else {
+                        const yearMatch = String(rawVigencia).match(/\b(20\d{2})\b/);
+                        year = yearMatch ? parseInt(yearMatch[0], 10) : 0;
+                      }
+
+                      if (year >= 2026) {
+                        const consultorName = standardizeCollaboratorName(consultorRaw).toUpperCase();
+                        const uniqueKey = `${normalizeForFp(String(razao))}_${normalizeForFp(String(produto))}_${normalizeForFp(String(rawVigencia))}_${lineInFile}`;
+                        const fpPipeline = `vol_nova_${uniqueKey}`.substring(0, 240);
+
+                        pipelineBatch.set(db.collection('pipeline_volumetria').doc(fpPipeline), {
+                          razao_social: String(razao),
+                          produto: String(produto),
+                          consultor: consultorName,
+                          status_pipeline: String(rawStatus),
+                          status_normalizado: normalizedStatus,
+                          origem: 'nova',
+                          data_vigencia: String(rawVigencia),
+                          updated_at: FieldValue.serverTimestamp(),
+                          last_sync_by: uid
+                        }, { merge: true });
+
+                        pipelineOpCount++;
+                        seenPipelineFps.add(fpPipeline);
+                        result.pipeline_stats.processed++;
+
+                        if (pipelineOpCount >= 400) {
+                          await pipelineBatch.commit();
+                          pipelineBatch = db.batch();
+                          pipelineOpCount = 0;
+                        }
+                      }
+                    }
+                  }
+                }
+
               } catch (err: any) {
                 result.erros_processamento.push({
                   linha: result.linhas_total,
@@ -161,6 +242,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               }
             }
 
+            // Commit final do batch da pipeline
+            if (pipelineOpCount > 0) {
+              await pipelineBatch.commit();
+            }
+
+            // Limpeza geral de registros antigos de volumetria (deletar os que não vieram neste CSV)
+            const allPipelineDocs = await db.collection('pipeline_volumetria').get();
+            let deleteBatch = db.batch();
+            let deleteCount = 0;
+            let currentDelCount = 0;
+
+            for (const doc of allPipelineDocs.docs) {
+              if (!seenPipelineFps.has(doc.id)) {
+                deleteBatch.delete(doc.ref);
+                deleteCount++;
+                currentDelCount++;
+                
+                if (currentDelCount >= 400) {
+                  await deleteBatch.commit();
+                  deleteBatch = db.batch();
+                  currentDelCount = 0;
+                }
+              }
+            }
+
+            if (currentDelCount > 0) {
+              await deleteBatch.commit();
+            }
+
+            result.pipeline_stats.deleted = deleteCount;
             result.linhas_com_pendencia = result.criadas + result.atualizadas;
 
             await jobRef.update({
@@ -172,6 +283,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             res.status(200).json({ ok: true, jobId, status: 'success', result });
             resolve(true);
           } catch (err: any) {
+            console.error('File sync execution error:', err);
             res.status(500).json({ ok: false, error: err.message });
             resolve(false);
           }
