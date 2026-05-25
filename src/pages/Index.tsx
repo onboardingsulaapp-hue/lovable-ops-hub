@@ -211,7 +211,40 @@ const Index = () => {
       }
     });
 
-    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+    const lista = Array.from(map.values());
+    
+    // Agrupar por primeiro nome normalizado para remover duplicatas curtas (ex: "Joab" vs "Joab Almeida")
+    const grupos: Record<string, { id: string; nome: string; palavras: number }[]> = {};
+    lista.forEach(item => {
+      const nomeNorm = item.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+      const primeiroNome = nomeNorm.split(/\s+/)[0];
+      const numPalavras = nomeNorm.split(/\s+/).length;
+      
+      if (!grupos[primeiroNome]) {
+        grupos[primeiroNome] = [];
+      }
+      grupos[primeiroNome].push({ ...item, palavras: numPalavras });
+    });
+    
+    const filtrados: { id: string; nome: string }[] = [];
+    Object.keys(grupos).forEach(primeiroNome => {
+      const itensGrupo = grupos[primeiroNome];
+      if (itensGrupo.length > 1) {
+        // Se houver mais de um registro e algum for apenas o primeiro nome (1 palavra),
+        // preferimos as versões com sobrenome (mais de 1 palavra) para evitar duplicação.
+        const itensLongos = itensGrupo.filter(item => item.palavras > 1);
+        if (itensLongos.length > 0) {
+          itensLongos.forEach(item => filtrados.push({ id: item.id, nome: item.nome }));
+        } else {
+          // Se todos tiverem 1 palavra por algum motivo, mantém todos do grupo
+          itensGrupo.forEach(item => filtrados.push({ id: item.id, nome: item.nome }));
+        }
+      } else {
+        filtrados.push({ id: itensGrupo[0].id, nome: itensGrupo[0].nome });
+      }
+    });
+
+    return filtrados.sort((a, b) => a.nome.localeCompare(b.nome));
   }, [allUsers, pendencias]);
 
   const activePendencias = useMemo(() => pendencias.filter(p => !p.isDeleted), [pendencias]);
