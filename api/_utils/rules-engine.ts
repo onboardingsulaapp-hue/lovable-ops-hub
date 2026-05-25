@@ -82,21 +82,7 @@ export function toTitleCase(str: string): string {
 
 export function standardizeCollaboratorName(name: string): string {
   if (!name) return "";
-  const trimmed = name.trim();
-  const norm = trimmed.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-  
-  const firstWord = norm.split(/\s+/)[0];
-  const exclusivas = ["JOAB", "KATIA", "HELENA", "BEATRIZ", "MISLAINE"];
-  
-  if (exclusivas.includes(firstWord)) {
-    return firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
-  }
-  
-  if (firstWord === "PAMELA") {
-    return "Pamela Posseti";
-  }
-  
-  return toTitleCase(trimmed);
+  return toTitleCase(name.trim());
 }
 
 export function parseDate(dateStr: string): Date | null {
@@ -402,7 +388,15 @@ async function upsertTratativaAlert(
 export function resolveCollaborator(name: string): { id: string | null, mapped: boolean, standardName: string } {
   const stdName = standardizeCollaboratorName(name);
   const normalized = normalizeCollabName(stdName);
-  const uid = (collaboratorsJson as any)[normalized];
+  
+  // 1. Tentar match exato do nome normalizado
+  let uid = (collaboratorsJson as any)[normalized];
+  
+  // 2. Se não encontrar, tentar match baseado apenas no primeiro nome para compatibilidade
+  if (!uid) {
+    const firstWord = normalized.split(/\s+/)[0];
+    uid = (collaboratorsJson as any)[firstWord];
+  }
   
   if (uid && uid !== "PREENCHER_UID") {
     return { id: uid, mapped: true, standardName: stdName };
