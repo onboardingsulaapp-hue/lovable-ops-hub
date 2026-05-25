@@ -46,7 +46,7 @@ export function PipelineChart({ data, onConsultorClick }: PipelineChartProps) {
         };
       }
 
-      const statusNorm = item.status_normalizado;
+      const statusNorm = normalize(item.status_normalizado);
       // Match status
       let key = "";
       if (statusNorm.includes("OPERACAO")) key = "EM CURSO - OPERACAO";

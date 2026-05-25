@@ -1,6 +1,6 @@
 import { Pendencia, User } from "@/types/pendencia";
 
-export const mockUsers: User[] = [
+export const mockUsers: any[] = [
   { id: "u1", nome: "Admin", role: "admin", status: "ativo" },
   { id: "u5", nome: "Sócio Sênior", role: "socio", status: "ativo" },
   { id: "u2", nome: "Carlos Silva", role: "colaborador", status: "ativo" },
@@ -8,7 +8,7 @@ export const mockUsers: User[] = [
   { id: "u4", nome: "João Pereira", role: "colaborador", status: "ativo" },
 ];
 
-export const mockPendencias: Pendencia[] = [
+export const mockPendencias: any[] = [
   {
     id: "PND-001",
     colaborador: "Carlos Silva",

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { FileBarChart, Info, ArrowLeft, Calendar, FilterX } from "lucide-react";
+import { FileBarChart, Info, ArrowLeft, Calendar, FilterX, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export default function PipelineDashboard() {

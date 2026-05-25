@@ -85,6 +85,10 @@ export interface SyncJobResult {
   status_unicos_encontrados?: Record<string, number>;
   exemplos_de_pendencia?: any[];
   exemplos_ignorados?: any[];
+  pipeline_stats?: {
+    processed: number;
+    deleted: number;
+  };
 }
 
 export interface Job {
