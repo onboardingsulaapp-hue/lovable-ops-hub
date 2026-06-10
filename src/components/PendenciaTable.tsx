@@ -112,8 +112,7 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                 <React.Fragment key={p.id}>
                   <TableRow 
                     className={cn(
-                      "hover:bg-brand-light/80 even:bg-brand-light/30 transition-colors border-b border-borderLight/50",
-                      (p.origem === "Nova - Forms" || (p as any).origem_planilha === "nova") && "border-l-[4px] border-l-purple-500 bg-purple-50/10"
+                      "hover:bg-brand-light/80 even:bg-brand-light/30 transition-colors border-b border-borderLight/50"
                     )}
                   >
                     <TableCell>
@@ -182,14 +181,7 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                             Em Tratativa
                           </span>
                         )}
-                        {((p.origem === "Nova - Forms") || (p as any).origem_planilha === "nova") && (
-                          <span
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border-purple-200 uppercase"
-                          >
-                            <FileSpreadsheet className="h-2.5 w-2.5" />
-                            Nova Planilha
-                          </span>
-                        )}
+
                       </div>
                     </TableCell>
                     <TableCell>
@@ -209,15 +201,9 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                       )}
                     </TableCell>
                     <TableCell>
-                      {((p.origem === "Nova - Forms") || (p as any).origem_planilha === "nova") ? (
-                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 transition-colors text-[10px] px-2 font-bold">
-                          Forms
-                        </Badge>
-                      ) : (
                         <Badge variant="outline" className="text-muted-foreground text-[10px] px-2">
                           Tradicional
                         </Badge>
-                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -280,10 +266,10 @@ export function PendenciaTable({ pendencias, userRole, userName, onUpdatePendenc
                   </TableRow>
                   {expandedId === p.id && (
                     <TableRow key={`${p.id}-detail`}>
-                      <TableCell colSpan={colSpan} className={cn("p-0 border-b border-borderLight", ((p.origem === "Nova - Forms") || (p as any).origem_planilha === "nova") ? "bg-purple-50/20" : "bg-brand-light/50")}>
+                      <TableCell colSpan={colSpan} className={cn("p-0 border-b border-borderLight", "bg-brand-light/50")}>
                         <div className={cn(
                           "grid md:grid-cols-2 gap-8 p-8 border-t-2",
-                          ((p.origem === "Nova - Forms") || (p as any).origem_planilha === "nova") ? "border-purple-400" : "border-brand-orange/20"
+                          "border-brand-orange/20"
                         )}>
                           <div className="space-y-6">
                             <h4 className="text-sm font-bold text-brand-blue uppercase tracking-widest border-b border-borderLight pb-2">Detalhes da Pendência</h4>

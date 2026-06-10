@@ -572,29 +572,20 @@ const Index = () => {
         // Atualizar feedback visual de progresso
         toast.loading(`Enviando ${i + 1} de ${totalColab}: ${target.nome}...`, { id: "email-batch" });
 
-        // Ordenar: Nova Planilha primeiro, depois Tradicional
-        const sortedPends = [...pends].sort((a, b) => {
-          if (a.origem === "Nova - Forms" && b.origem !== "Nova - Forms") return -1;
-          if (a.origem !== "Nova - Forms" && b.origem === "Nova - Forms") return 1;
-          return 0;
-        });
+        // Mantém a ordem original das pendências do filtro atual
+        const sortedPends = [...pends];
 
         // Gerar Tabela HTML para o colaborador atual
         let rowsHtml = "";
         sortedPends.forEach(p => {
           const itens = Array.isArray(p.pendencias) ? p.pendencias.join(", ") : (p.texto_pendencia || "Verificar no sistema");
-          const isNova = p.origem === "Nova - Forms";
-          const rowBg = isNova ? "#F0FDF4" : "#ffffff"; // Fundo verde claro para a Nova
-          
           rowsHtml += `
-            <tr style="border-bottom: 1px solid #E2E8F0; background-color: ${rowBg};">
+            <tr style="border-bottom: 1px solid #E2E8F0; background-color: #ffffff;">
               <td style="padding: 12px; font-size: 13px; color: #1D2E5D;">${p.razao_social}</td>
               <td style="padding: 12px; font-size: 13px; text-align: center; color: #1D2E5D;">${p.tipo_implantacao || "Saúde"}</td>
               <td style="padding: 12px; font-size: 13px; text-align: center; color: #1D2E5D;">${p.data_vigencia}</td>
               <td style="padding: 12px; font-size: 11px; text-align: center; font-weight: 800;">
-                ${isNova 
-                  ? '<span style="background-color: #DCFCE7; color: #15803D; padding: 4px 8px; border-radius: 4px; border: 1px solid #86EFAC;">NOVA PLANILHA (FORMS)</span>' 
-                  : '<span style="color: #6B7280;">TRADICIONAL</span>'}
+                <span style="color: #6B7280;">TRADICIONAL</span>
               </td>
               <td style="padding: 12px; font-size: 13px; color: #EF482B; font-weight: 500;">${itens}</td>
             </tr>
@@ -623,12 +614,6 @@ const Index = () => {
               <p style="font-size: 14px; color: #737D9A; margin-bottom: 16px;">
                 Identificamos <strong>${pends.length}</strong> pendência(s) aguardando sua regularização (Lembrando que as Pendências podem estar incorretas pois é um sistema que analisa os dados de forma automática, então é importante validar cada caso e corrigir as informações na planilha para evitar futuros erros de análise, Casa haja divergências, contate o Daniel Santos da Silva para alinhamento e correção dos dados no sistema). Abaixo estão os detalhes de cada pendência identificada:
               </p>
-
-              ${sortedPends.some(p => p.origem === "Nova - Forms") ? `
-              <div style="background-color: #F0FDF4; border: 1px solid #86EFAC; color: #166534; padding: 12px; border-radius: 6px; margin-bottom: 20px; font-size: 13px;">
-                <strong>📢 ATENÇÃO:</strong> As pendências da <strong>ESTEIRA NOVA (FORMS)</strong> estão destacadas em verde na tabela abaixo.
-              </div>
-              ` : ''}
               
               <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
                 <thead>
