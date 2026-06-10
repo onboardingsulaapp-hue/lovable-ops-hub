@@ -17,7 +17,6 @@ export function StatsCards({ pendencias }: StatsCardsProps) {
   
   const cards = [
     { label: "Total", value: total, icon: Clock, color: "text-[#1D2E5D]", bgColor: "bg-[#F7F8FA]" },
-    { label: "Nova Planilha", value: novaPlanilha, icon: FileSpreadsheet, color: "text-purple-600", bgColor: "bg-purple-50" },
     { label: "Pendentes", value: pendentes, icon: AlertCircle, color: "text-[#EF482B]", bgColor: "bg-[#FEF2F2]" },
     { label: "Corrigidas", value: corrigidas, icon: CheckCircle2, color: "text-[#1D2E5D]", bgColor: "bg-[#EFF6FF]" },
     { label: "Validadas (OK)", value: ok, icon: CheckCircle2, color: "text-[#166534]", bgColor: "bg-[#F0FDF4]" },
