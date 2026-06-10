@@ -621,7 +621,7 @@ const Index = () => {
               </div>
 
               <p style="font-size: 14px; color: #737D9A; margin-bottom: 16px;">
-                Identificamos <strong>${pends.length}</strong> pendência(s) aguardando sua regularização:
+                Identificamos <strong>${pends.length}</strong> pendência(s) aguardando sua regularização (Lembrando que as Pendências podem estar incorretas pois é um sistema que analisa os dados de forma automática, então é importante validar cada caso e corrigir as informações na planilha para evitar futuros erros de análise, Casa haja divergências, contate o Daniel Santos da Silva para alinhamento e correção dos dados no sistema). Abaixo estão os detalhes de cada pendência identificada:
               </p>
 
               ${sortedPends.some(p => p.origem === "Nova - Forms") ? `
@@ -648,7 +648,7 @@ const Index = () => {
               <div style="text-align: center; margin: 32px 0;">
                 <p style="font-size: 14px; color: #737D9A; margin-bottom: 16px; font-weight: 500;">Acesse a planilha abaixo para realizar as correções:</p>
                 <div style="display: inline-flex; justify-content: center;">
-                  <a href="https://docs.google.com/spreadsheets/d/1DsqQKV45tM6DlTZA-9D3HN20u_57ebzfnF7aufIYHWY/edit?usp=sharing" target="_blank" style="background-color: #1D2E5D; color: white; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">
+                  <a href="https://docs.google.com/spreadsheets/d/114TPTZMAuF_UTDNmDm55S5Otz1sa612IAENl-XZo33M/edit?usp=sharing" target="_blank" style="background-color: #1D2E5D; color: white; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">
                     Planilha de Implantação
                   </a>
                 </div>
