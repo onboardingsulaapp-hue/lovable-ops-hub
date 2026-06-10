@@ -668,7 +668,7 @@ const Index = () => {
           await emailjs.send(SERVICE_ID, TEMPLATE_ID, {
             to_name: target.nome,
             to_email: target.email,
-            subject: `Pendências pendentes - Prazo: ${prazo} dias`,
+            subject: `Pendências pendentes - Prazo: ${prazo} dias - Caso haja divergencias, contate o Daniel Santos da Silva.`,
             my_html_content: my_html_content,
             total_cases: pends.length,
             prazo: prazo
