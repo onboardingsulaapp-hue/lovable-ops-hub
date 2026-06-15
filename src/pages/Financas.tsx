@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Upload, Play, CheckCircle2, Circle, FileSpreadsheet, Loader2, MoreHorizontal, PauseCircle, RotateCcw, Clock } from "lucide-react";
+import { Upload, Play, CheckCircle2, Circle, FileSpreadsheet, Loader2, MoreHorizontal, PauseCircle, RotateCcw, Clock, Mail } from "lucide-react";
+import emailjs from "@emailjs/browser";
 
 interface Divergencia {
   id: string; // fingerprint (razao_social_normalizada)
@@ -20,6 +21,7 @@ interface Divergencia {
   linha_csv: number;
   planilha_origem: string;
   status?: string; // "Em Aberto" | "Em Espera" | "Resolvido"
+  consultor_onboarding?: string;
 }
 
 // Normalizador genérico
@@ -178,6 +180,7 @@ export default function Financas() {
               faturamento: String(row["Faturamento"] || ""),
               linha_csv: row._linha_csv,
               planilha_origem: fileTime.name,
+              consultor_onboarding: String(row["Consultor Onboarding"] || row["consultor_onboarding"] || "").trim(),
               status: historicoStatus[id] || "Em Aberto"
             });
           }
@@ -224,6 +227,150 @@ export default function Financas() {
       toast.error("Erro ao atualizar o status.");
       // Reverter estado em caso de erro
       setDivergencias(prev => prev.map(d => d.id === div.id ? { ...d, status: statusAnterior } : d));
+    }
+  };
+
+  const handleSendEmails = async () => {
+    const pendentes = divergencias.filter(d => d.status === "Em Aberto");
+    if (pendentes.length === 0) {
+      toast.info("Não há pendências financeiras 'Em Aberto' para disparar.");
+      return;
+    }
+
+    const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || "";
+    const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || "";
+    const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || "";
+
+    if (!SERVICE_ID || !TEMPLATE_ID || !PUBLIC_KEY) {
+      toast.error("Chaves do EmailJS não configuradas.");
+      return;
+    }
+
+    // Agrupar por consultor
+    const pendsByColab: Record<string, Divergencia[]> = {};
+    pendentes.forEach(d => {
+      const nome = d.consultor_onboarding || "Sem Responsável";
+      const lowerNome = nome.toLowerCase();
+      if (lowerNome.includes("sem respons") || lowerNome.includes("não informado")) return;
+      
+      const nomeNorm = normalizeString(nome);
+      if (!pendsByColab[nomeNorm]) pendsByColab[nomeNorm] = [];
+      pendsByColab[nomeNorm].push(d);
+    });
+
+    const entries = Object.entries(pendsByColab);
+    if (entries.length === 0) {
+      toast.info("Nenhuma pendência válida vinculada a um consultor.");
+      return;
+    }
+
+    let metricas = { enviados: 0, falhas: 0 };
+    toast.loading(`Iniciando disparos para ${entries.length} consultores...`, { id: "email-batch" });
+
+    try {
+      const { getDocs } = await import("firebase/firestore");
+      const usersSnap = await getDocs(collection(db, "usuarios"));
+      const allUsers = usersSnap.docs.map(doc => doc.data());
+
+      for (let i = 0; i < entries.length; i++) {
+        const [colabNorm, pends] = entries[i];
+        
+        const target = allUsers.find(u => normalizeString(u.nome) === colabNorm || normalizeString(u.email) === colabNorm);
+        
+        if (!target || !target.email) {
+          console.warn(`Pulando ${colabNorm}: E-mail não encontrado.`);
+          metricas.falhas++;
+          continue;
+        }
+
+        toast.loading(`Enviando ${i + 1} de ${entries.length}: ${target.nome}...`, { id: "email-batch" });
+
+        let rowsHtml = "";
+        pends.forEach(d => {
+          rowsHtml += `
+            <tr style="border-bottom: 1px solid #E2E8F0; background-color: #ffffff;">
+              <td style="padding: 12px; font-size: 13px; color: #1D2E5D; font-weight: bold;">${d.razao_social}</td>
+              <td style="padding: 12px; font-size: 13px; color: #EF482B; font-weight: 500;">${d.particularidades}</td>
+              <td style="padding: 12px; font-size: 13px; color: #1D2E5D;">${d.fatura}</td>
+            </tr>
+          `;
+        });
+
+        const my_html_content = `
+          <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1D2E5D; line-height: 1.6; max-width: 600px; margin: 0 auto; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;">
+            <div style="background-color: #1D2E5D; color: white; padding: 24px; text-align: center;">
+              <h2 style="margin: 0; font-size: 22px; font-weight: bold; text-transform: uppercase;">Divergências Financeiras</h2>
+              <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.8;">Auditoria de Faturamento | SulAmérica</p>
+            </div>
+            
+            <div style="padding: 32px; background-color: #ffffff;">
+              <p style="font-size: 16px; margin-bottom: 20px;">Olá <strong>${target.nome}</strong>,</p>
+              
+              <div style="background-color: #FFF5F5; border-left: 4px solid #EF482B; padding: 20px; margin: 24px 0; border-radius: 4px;">
+                <p style="margin: 0; color: #EF482B; font-weight: 800; font-size: 16px;">
+                  ⚠️ AÇÃO NECESSÁRIA
+                </p>
+                <p style="margin: 8px 0 0 0; font-size: 14px; color: #737D9A; font-weight: 500;">
+                  As empresas abaixo sob sua responsabilidade constam na auditoria de faturamento com informações pendentes ou divergentes.
+                </p>
+              </div>
+
+              <p style="font-size: 14px; color: #737D9A; margin-bottom: 16px;">
+                Foram encontradas <strong>${pends.length}</strong> pendência(s):
+              </p>
+              
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                <thead>
+                  <tr style="background-color: #F7F8FA;">
+                    <th style="padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Empresa</th>
+                    <th style="padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Particularidades</th>
+                    <th style="padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Fatura</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml}
+                </tbody>
+              </table>
+
+              <div style="text-align: center; margin: 32px 0;">
+                <a href="https://docs.google.com/spreadsheets/d/19xXuVjLdy2ZiKhZFtClAwcH3kOPrNj8_sUQzY4XTcrI/edit?usp=sharing" target="_blank" style="background-color: #EF482B; color: white; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 6px rgba(239, 72, 43, 0.2);">
+                  Acessar Controle Financeiro
+                </a>
+              </div>
+
+              <div style="border-top: 1px solid #E2E8F0; padding-top: 24px; margin-top: 32px; text-align: center;">
+                <p style="font-size: 12px; color: #737D9A; margin: 0;">
+                  Esta é uma mensagem automática. Por favor, não responda a este e-mail.<br>
+                  <strong>SulAmérica | Operações Corporativas</strong>
+                </p>
+              </div>
+            </div>
+          </div>
+        `;
+
+        try {
+          await emailjs.send(SERVICE_ID, TEMPLATE_ID, {
+            to_name: target.nome,
+            to_email: target.email,
+            subject: `Divergências de Faturamento (${pends.length} pendentes)`,
+            my_html_content: my_html_content
+          }, PUBLIC_KEY);
+          
+          metricas.enviados++;
+        } catch (err) {
+          console.error(`[EmailJS] Falha ao enviar para ${target.nome}:`, err);
+          metricas.falhas++;
+        }
+
+        if (i < entries.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      toast.success(`Processo concluído: ${metricas.enviados} enviados, ${metricas.falhas} falhas.`, { id: "email-batch" });
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro geral no disparo de e-mails.", { id: "email-batch" });
     }
   };
 
@@ -312,8 +459,8 @@ export default function Financas() {
           </Card>
         </div>
 
-        {/* Botão de Ação */}
-        <div className="flex justify-center">
+        {/* Botões de Ação */}
+        <div className="flex justify-center gap-4">
           <Button 
             size="lg" 
             onClick={handleProcessar}
@@ -323,6 +470,18 @@ export default function Financas() {
             {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Play className="mr-2 h-5 w-5 fill-current" />}
             Iniciar Cruzamento de Dados
           </Button>
+
+          {divergencias.length > 0 && (
+            <Button
+              size="lg"
+              onClick={handleSendEmails}
+              disabled={divergencias.filter(d => d.status === "Em Aberto").length === 0}
+              className="bg-brand-orange hover:bg-brand-orange/90 text-white font-bold px-8 shadow-md"
+            >
+              <Mail className="mr-2 h-5 w-5" />
+              Disparar Cobranças
+            </Button>
+          )}
         </div>
 
         {/* Resultados */}
