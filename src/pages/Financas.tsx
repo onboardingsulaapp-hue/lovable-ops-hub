@@ -88,9 +88,13 @@ export default function Financas() {
     const lines = text.split(/\r?\n/);
     let headerRowIndex = 0;
     
-    // Simplificação: vamos assumir que a primeira linha não vazia é o cabeçalho, ou procurar palavras-chave
+    // Encontra a linha de cabeçalho garantindo que ela tem delimitadores (evita linhas de título isoladas)
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].toLowerCase().includes("empresa") || lines[i].toLowerCase().includes("social")) {
+      const lineLower = lines[i].toLowerCase();
+      const temPalavraChave = lineLower.includes("empresa") || lineLower.includes("social") || lineLower.includes("fatura");
+      const temDelimitadores = lines[i].split(/[;,\t]/).length > 2;
+      
+      if (temPalavraChave && temDelimitadores) {
         headerRowIndex = i;
         break;
       }

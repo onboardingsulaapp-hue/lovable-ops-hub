@@ -30,7 +30,8 @@ export const analisarDivergenciasFinanceiras = (
   // 1. Otimização: Criar um Set com as empresas do Financeiro para busca O(1)
   const empresasFinanceiro = new Set<string>();
   for (const rowFin of dadosFinanceiro) {
-    const nomeEmpresa = normalizeStr(rowFin["Nome Empresa"] || rowFin["nome_empresa"] || "");
+    // Pode vir como 'Nome Empresa' ou 'Razão Social do Cliente' dependendo do alias mapeado
+    const nomeEmpresa = normalizeStr(rowFin["Nome Empresa"] || rowFin["nome_empresa"] || rowFin["Razão Social do Cliente"] || rowFin["razao_social"] || "");
     if (nomeEmpresa) {
       empresasFinanceiro.add(nomeEmpresa);
     }
