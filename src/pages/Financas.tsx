@@ -58,19 +58,18 @@ export default function Financas() {
   // Carregar histórico de divergências resolvidas/em espera do Firestore
   useEffect(() => {
     if (!user || user.role !== "admin") return;
-    const q = query(collection(db, "divergencias_financeiras"));
+    const q = query(collection(db, "auditoria_financeira"));
     const unsub = onSnapshot(q, (snap) => {
-      const history: Record<string, string> = {};
-      snap.docs.forEach(d => {
-        history[d.id] = d.data().status || "Em Aberto";
+      const dbDivergencias = snap.docs.map(d => {
+        return { ...d.data(), id: d.id } as Divergencia;
       });
-      setHistoricoStatus(history);
-      
-      // Atualizar lista atual se houver
-      setDivergencias(prev => prev.map(div => ({
-        ...div,
-        status: (history[div.id] || "Em Aberto") as "Em Aberto" | "Em Espera" | "Resolvido"
-      })));
+      // Opcional: ordenar para mostrar "Em Aberto" primeiro
+      dbDivergencias.sort((a, b) => {
+        if (a.status === "Em Aberto" && b.status !== "Em Aberto") return -1;
+        if (a.status !== "Em Aberto" && b.status === "Em Aberto") return 1;
+        return 0;
+      });
+      setDivergencias(dbDivergencias);
     });
     return () => unsub();
   }, [user]);
@@ -127,28 +126,14 @@ export default function Financas() {
 
       // 1. Analisar Divergências Financeiras (Motor de Regras Estrito)
       const divergenciasEncontradas = analisarDivergenciasFinanceiras(dadosTime, dadosFinanceiro, fileTime.name);
-      
-      // Ajustar o status das divergências encontradas com o histórico do Firestore
-      const novasDivergencias = divergenciasEncontradas.map(div => {
-        // ID gerado no motor já é normalizado
-        const id = div.id || div.razao_social.replace(/\s+/g, '_'); 
-        return {
-          ...div,
-          id,
-          status: historicoStatus[id] || "Em Aberto"
-        } as Divergencia;
-      });
 
       // 2. Salvar as pendências de forma persistente na coleção `auditoria_financeira`
-      // Assumindo mês/ano atual para o histórico, ou capturando da interface (simplificado aqui para 06_2026)
       const dataAtual = new Date();
       const mesAno = `${String(dataAtual.getMonth() + 1).padStart(2, '0')}_${dataAtual.getFullYear()}`;
-      await salvarPendenciasFinanceiras(novasDivergencias, mesAno);
+      await salvarPendenciasFinanceiras(divergenciasEncontradas, mesAno);
 
-      setDivergencias(novasDivergencias);
-      
-      if (novasDivergencias.length > 0) {
-        toast.success(`Encontradas ${novasDivergencias.length} empresas não faturadas.`, { id: "cruzamento" });
+      if (divergenciasEncontradas.length > 0) {
+        toast.success(`Encontradas ${divergenciasEncontradas.length} empresas não faturadas. O painel foi atualizado.`, { id: "cruzamento" });
       } else {
         toast.success("Nenhuma divergência encontrada! Tudo certo.", { id: "cruzamento" });
       }
@@ -162,18 +147,11 @@ export default function Financas() {
   };
 
   const handleUpdateStatus = async (div: Divergencia, novoStatus: "Em Aberto" | "Em Espera" | "Resolvido") => {
-    const statusAnterior = div.status;
-    
-    // Atualiza estado local otimista
-    setDivergencias(prev => prev.map(d => d.id === div.id ? { ...d, status: novoStatus } : d));
-
+    // Como a tabela agora é reativa ao onSnapshot do banco, atualizar o banco é suficiente.
     try {
-      const docRef = doc(db, "divergencias_financeiras", div.id);
+      const docRef = doc(db, "auditoria_financeira", div.id);
       
       await setDoc(docRef, {
-        razao_social: div.razao_social,
-        particularidades: div.particularidades,
-        fatura: div.fatura,
         status: novoStatus,
         data_atualizacao: new Date().toISOString(),
         atualizado_por: user?.nome
@@ -183,8 +161,6 @@ export default function Financas() {
     } catch (error) {
       console.error("Erro ao salvar no Firestore:", error);
       toast.error("Erro ao atualizar o status.");
-      // Reverter estado em caso de erro
-      setDivergencias(prev => prev.map(d => d.id === div.id ? { ...d, status: statusAnterior } : d));
     }
   };
 

@@ -19,7 +19,7 @@ import { SocioCharts } from "@/components/socio/SocioCharts";
 import { SendEmailDialog } from "@/components/socio/SendEmailDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { auth, db } from "@/lib/firebase";
-import { collection, doc, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, Timestamp, orderBy } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, Timestamp, orderBy, getDocs } from "firebase/firestore";
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import logoImg from "@/assets/brand/sulamerica_logo.png";
 import { GenerateReportButton } from "@/components/admin/GenerateReportButton";
@@ -512,31 +512,62 @@ const Index = () => {
     }
 
     try {
-      // 1. Agrupar apenas as pendências que estão visíveis e com status 'Pendente'
+      // 1. Fetch pendências regulares
       const activePending = activePendencias.filter(p => p.status === "Pendente" && !p.isDeleted);
-      const pendsByColab: Record<string, Pendencia[]> = {};
       
+      // 2. Fetch divergências financeiras
+      const finSnap = await getDocs(query(collection(db, "auditoria_financeira"), where("status", "==", "Em Aberto")));
+      const finPends = finSnap.docs.map(d => d.data());
+
+      const normalizeStr = (s: string) => s ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
+
+      const groupedByTarget = new Map<string, { target: User, pends: Pendencia[], finPends: any[] }>();
+
+      const addPendToGroup = (target: User, pend: any, type: "pend" | "fin") => {
+        const key = target.uid || target.id;
+        if (!groupedByTarget.has(key)) {
+          groupedByTarget.set(key, { target, pends: [], finPends: [] });
+        }
+        if (type === "pend") groupedByTarget.get(key)!.pends.push(pend);
+        else groupedByTarget.get(key)!.finPends.push(pend);
+      };
+
       activePending.forEach(p => {
         const nome = p.colaborador_nome || "";
         const lowerNome = nome.toLowerCase();
 
-        // IGNORAR SOMENTE pendências marcadas como "Sem responsável (mapear consultor onboarding)"
-        if (lowerNome.includes("sem responsável") || lowerNome.includes("sem responsavel")) {
-          return;
-        }
+        if (lowerNome.includes("sem responsável") || lowerNome.includes("sem responsavel")) return;
 
-        // Ignorar IDs genéricos que começam com 'sem_' (ex: sem_id) para forçar o uso do Nome
         const idInvalido = !p.colaborador_id || p.colaborador_id.startsWith("sem_");
-        
-        // Se o ID é inválido, usa o nome como chave. Senão, usa o ID.
         const key = !idInvalido ? p.colaborador_id : (p.colaborador_nome || "sem_identificacao");
-        
-        if (!pendsByColab[key]) pendsByColab[key] = [];
-        pendsByColab[key].push(p);
+        const keyNorm = normalizeStr(key);
+
+        const target = allUsers.find(u => {
+          return normalizeStr(u.id) === keyNorm || 
+                 normalizeStr(u.uid || "") === keyNorm || 
+                 normalizeStr(u.nome) === keyNorm || 
+                 normalizeStr(u.email) === keyNorm;
+        });
+
+        if (target) addPendToGroup(target, p, "pend");
       });
 
-      const colabGroups = Object.entries(pendsByColab);
-      const totalColab = colabGroups.length;
+      finPends.forEach(f => {
+        const nome = f.consultor_onboarding || "";
+        const lowerNome = nome.toLowerCase();
+        if (lowerNome.includes("sem respons") || lowerNome.includes("não informado")) return;
+
+        const keyNorm = normalizeStr(nome);
+        const target = allUsers.find(u => 
+          normalizeStr(u.nome) === keyNorm || 
+          normalizeStr(u.email) === keyNorm
+        );
+
+        if (target) addPendToGroup(target, f, "fin");
+      });
+
+      const targets = Array.from(groupedByTarget.values());
+      const totalColab = targets.length;
 
       if (totalColab === 0) {
         toast.info("Não há pendências em aberto para notificar nos filtros atuais.");
@@ -547,37 +578,19 @@ const Index = () => {
       toast.loading(`Iniciando disparos para ${totalColab} colaboradores...`, { id: "email-batch" });
 
       for (let i = 0; i < totalColab; i++) {
-        const [colabKey, pends] = colabGroups[i];
-        
-        // Normalização para busca robusta
-        const normalizeStr = (s: string) => s ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
-        const keyNorm = normalizeStr(colabKey);
-
-        // Localizar colaborador nos dados carregados (Busca robusta por ID, UID, Nome ou Email)
-        const target = allUsers.find(u => {
-          const uId = normalizeStr(u.id);
-          const uUid = normalizeStr(u.uid || "");
-          const uNome = normalizeStr(u.nome);
-          const uEmail = normalizeStr(u.email);
-          
-          return uId === keyNorm || uUid === keyNorm || uNome === keyNorm || uEmail === keyNorm;
-        });
+        const targetGroup = targets[i];
+        const target = targetGroup.target;
         
         if (!target || !target.email) {
           metricas.sem_email++;
-          console.warn(`[EmailJS] Pulando ${colabKey}: E-mail não encontrado no mapeamento.`);
+          console.warn(`[EmailJS] Pulando ${target?.nome}: E-mail não encontrado no mapeamento.`);
           continue;
         }
 
-        // Atualizar feedback visual de progresso
         toast.loading(`Enviando ${i + 1} de ${totalColab}: ${target.nome}...`, { id: "email-batch" });
 
-        // Mantém a ordem original das pendências do filtro atual
-        const sortedPends = [...pends];
-
-        // Gerar Tabela HTML para o colaborador atual
         let rowsHtml = "";
-        sortedPends.forEach(p => {
+        targetGroup.pends.forEach(p => {
           const itens = Array.isArray(p.pendencias) ? p.pendencias.join(", ") : (p.texto_pendencia || "Verificar no sistema");
           rowsHtml += `
             <tr style="border-bottom: 1px solid #E2E8F0; background-color: #ffffff;">
@@ -591,6 +604,73 @@ const Index = () => {
             </tr>
           `;
         });
+
+        let finRowsHtml = "";
+        targetGroup.finPends.forEach(f => {
+          finRowsHtml += `
+            <tr style="border-bottom: 1px solid #E2E8F0; background-color: #ffffff;">
+              <td style="padding: 12px; font-size: 13px; color: #1D2E5D; font-weight: bold;">${f.razao_social}</td>
+              <td style="padding: 12px; font-size: 13px; color: #EF482B; font-weight: 500;">${f.particularidades}</td>
+              <td style="padding: 12px; font-size: 13px; color: #1D2E5D;">${f.fatura}</td>
+            </tr>
+          `;
+        });
+
+        const pendenciasTableHtml = targetGroup.pends.length > 0 ? `
+          <p style="font-size: 14px; color: #737D9A; margin-bottom: 16px;">
+            Identificamos <strong>${targetGroup.pends.length}</strong> pendência(s) aguardando sua regularização (Lembrando que as Pendências podem estar incorretas pois é um sistema que analisa os dados de forma automática, então é importante validar cada caso e corrigir as informações na planilha para evitar futuros erros de análise. Caso haja divergências, contate o Daniel Santos da Silva para alinhamento e correção dos dados no sistema). Abaixo estão os detalhes:
+          </p>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+            <thead>
+              <tr style="background-color: #F7F8FA;">
+                <th style="padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Empresa</th>
+                <th style="padding: 12px; text-align: center; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Produto</th>
+                <th style="padding: 12px; text-align: center; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Vigência</th>
+                <th style="padding: 12px; text-align: center; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Origem</th>
+                <th style="padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Pendências</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+          <div style="text-align: center; margin: 32px 0;">
+            <p style="font-size: 14px; color: #737D9A; margin-bottom: 16px; font-weight: 500;">Acesse a planilha abaixo para realizar as correções:</p>
+            <div style="display: inline-flex; justify-content: center;">
+              <a href="https://docs.google.com/spreadsheets/d/114TPTZMAuF_UTDNmDm55S5Otz1sa612IAENl-XZo33M/edit?usp=sharing" target="_blank" style="background-color: #1D2E5D; color: white; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">
+                Planilha de Implantação
+              </a>
+            </div>
+          </div>
+        ` : "";
+
+        const financialTableHtml = targetGroup.finPends.length > 0 ? `
+          <div style="background-color: #FFF5F5; border-left: 4px solid #EF482B; padding: 20px; margin: 32px 0 24px 0; border-radius: 4px;">
+            <p style="margin: 0; color: #EF482B; font-weight: 800; font-size: 16px;">
+              ⚠️ DIVERGÊNCIAS DE FATURAMENTO
+            </p>
+            <p style="margin: 8px 0 0 0; font-size: 14px; color: #737D9A; font-weight: 500;">
+              As empresas abaixo constam na auditoria de faturamento com informações pendentes ou divergentes.
+            </p>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+            <thead>
+              <tr style="background-color: #F7F8FA;">
+                <th style="padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Empresa</th>
+                <th style="padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Particularidades</th>
+                <th style="padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Fatura</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${finRowsHtml}
+            </tbody>
+          </table>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="https://docs.google.com/spreadsheets/d/19xXuVjLdy2ZiKhZFtClAwcH3kOPrNj8_sUQzY4XTcrI/edit?usp=sharing" target="_blank" style="background-color: #EF482B; color: white; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 6px rgba(239, 72, 43, 0.2);">
+              Acessar Controle Financeiro
+            </a>
+          </div>
+        ` : "";
 
         const my_html_content = `
           <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1D2E5D; line-height: 1.6; max-width: 600px; margin: 0 auto; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;">
@@ -607,37 +687,12 @@ const Index = () => {
                   ⏱️ PRAZO DE REGULARIZAÇÃO: ${prazo} DIAS
                 </p>
                 <p style="margin: 8px 0 0 0; font-size: 14px; color: #737D9A; font-weight: 500;">
-                  Solicitamos a atuação imediata nos casos abaixo para manter o cronograma de implantação.
+                  Solicitamos a atuação imediata nos casos abaixo para manter o cronograma de implantação e faturamento em dia.
                 </p>
               </div>
 
-              <p style="font-size: 14px; color: #737D9A; margin-bottom: 16px;">
-                Identificamos <strong>${pends.length}</strong> pendência(s) aguardando sua regularização (Lembrando que as Pendências podem estar incorretas pois é um sistema que analisa os dados de forma automática, então é importante validar cada caso e corrigir as informações na planilha para evitar futuros erros de análise, Casa haja divergências, contate o Daniel Santos da Silva para alinhamento e correção dos dados no sistema). Abaixo estão os detalhes de cada pendência identificada:
-              </p>
-              
-              <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-                <thead>
-                  <tr style="background-color: #F7F8FA;">
-                    <th style="padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Empresa</th>
-                    <th style="padding: 12px; text-align: center; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Produto</th>
-                    <th style="padding: 12px; text-align: center; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Vigência</th>
-                    <th style="padding: 12px; text-align: center; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Origem</th>
-                    <th style="padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: #737D9A; border-bottom: 2px solid #E2E8F0;">Pendências</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${rowsHtml}
-                </tbody>
-              </table>
-
-              <div style="text-align: center; margin: 32px 0;">
-                <p style="font-size: 14px; color: #737D9A; margin-bottom: 16px; font-weight: 500;">Acesse a planilha abaixo para realizar as correções:</p>
-                <div style="display: inline-flex; justify-content: center;">
-                  <a href="https://docs.google.com/spreadsheets/d/114TPTZMAuF_UTDNmDm55S5Otz1sa612IAENl-XZo33M/edit?usp=sharing" target="_blank" style="background-color: #1D2E5D; color: white; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">
-                    Planilha de Implantação
-                  </a>
-                </div>
-              </div>
+              ${pendenciasTableHtml}
+              ${financialTableHtml}
 
               <div style="border-top: 1px solid #E2E8F0; padding-top: 24px; margin-top: 32px; text-align: center;">
                 <p style="font-size: 12px; color: #737D9A; margin: 0;">
@@ -653,9 +708,9 @@ const Index = () => {
           await emailjs.send(SERVICE_ID, TEMPLATE_ID, {
             to_name: target.nome,
             to_email: target.email,
-            subject: `Pendências pendentes - Prazo: ${prazo} dias - Caso haja divergencias, contate o Daniel Santos da Silva.`,
+            subject: `Pendências de Implantação e Faturamento - Prazo: ${prazo} dias.`,
             my_html_content: my_html_content,
-            total_cases: pends.length,
+            total_cases: targetGroup.pends.length + targetGroup.finPends.length,
             prazo: prazo
           }, PUBLIC_KEY);
           
