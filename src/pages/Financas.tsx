@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Upload, Play, CheckCircle2, Circle, FileSpreadsheet, Loader2, MoreHorizontal, PauseCircle, RotateCcw, Clock, Mail } from "lucide-react";
 import emailjs from "@emailjs/browser";
+import { analisarDivergenciasFinanceiras } from "@/lib/financial-rules";
+import { salvarPendenciasFinanceiras, AuditoriaFinanceiraItem } from "@/lib/financial-store";
 
 interface Divergencia {
   id: string; // fingerprint (razao_social_normalizada)
@@ -20,7 +22,7 @@ interface Divergencia {
   faturamento: string;
   linha_csv: number;
   planilha_origem: string;
-  status?: string; // "Em Aberto" | "Em Espera" | "Resolvido"
+  status?: "Em Aberto" | "Em Espera" | "Resolvido";
   consultor_onboarding?: string;
 }
 
@@ -67,7 +69,7 @@ export default function Financas() {
       // Atualizar lista atual se houver
       setDivergencias(prev => prev.map(div => ({
         ...div,
-        status: history[div.id] || "Em Aberto"
+        status: (history[div.id] || "Em Aberto") as "Em Aberto" | "Em Espera" | "Resolvido"
       })));
     });
     return () => unsub();
@@ -123,69 +125,25 @@ export default function Financas() {
       const dadosTime = await parseCsvFile(fileTime);
       const dadosFinanceiro = await parseCsvFile(fileFinanceiro);
 
-      // 1. Construir Set de empresas do Financeiro para O(1) lookup
-      const empresasFinanceiro = new Set<string>();
-      dadosFinanceiro.forEach(row => {
-        const nomeEmpresa = row["Nome Empresa"];
-        if (nomeEmpresa) {
-          empresasFinanceiro.add(normalizeString(nomeEmpresa));
-        }
-      });
-
-      // 2. Filtrar e Cruzar dados do Time
-      const ignorarValores = ["nao ha", "nao tem", "n/a", "-", "vazio"];
+      // 1. Analisar Divergências Financeiras (Motor de Regras Estrito)
+      const divergenciasEncontradas = analisarDivergenciasFinanceiras(dadosTime, dadosFinanceiro, fileTime.name);
       
-      const novasDivergencias: Divergencia[] = [];
-
-      dadosTime.forEach(row => {
-        // Encontrar a coluna de vigência para checar o ano
-        let anoDaVigencia = 0;
-        const vigenciaKey = Object.keys(row).find(k => k.toLowerCase().includes("vigência") || k.toLowerCase().includes("vigencia"));
-        
-        if (vigenciaKey && row[vigenciaKey]) {
-          const val = String(row[vigenciaKey]);
-          const anoMatch = val.match(/\b(20\d\d)\b/);
-          if (anoMatch) {
-            anoDaVigencia = parseInt(anoMatch[1], 10);
-          }
-        }
-
-        // Se o ano for menor que 2026, pula (somos orientados a auditar apenas 2026 pra frente)
-        if (anoDaVigencia > 0 && anoDaVigencia < 2026) {
-          return;
-        }
-
-        const particularidades = String(row["Particularidades"] || "").trim();
-        const fatura = String(row["Fatura"] || "").trim();
-        const razaoSocial = String(row["Razão Social do Cliente"] || "").trim();
-
-        // Regra: Particularidades e Fatura precisam ter valores "reais"
-        const particNorm = normalizeString(particularidades);
-        const faturaNorm = normalizeString(fatura);
-
-        const temParticularidadeReal = particularidades !== "" && !ignorarValores.includes(particNorm);
-        const temFaturaReal = fatura !== "" && !ignorarValores.includes(faturaNorm);
-
-        if (temParticularidadeReal && temFaturaReal && razaoSocial) {
-          const razaoSocialNorm = normalizeString(razaoSocial);
-          
-          // Se não encontrou no financeiro, é uma divergência
-          if (!empresasFinanceiro.has(razaoSocialNorm)) {
-            const id = razaoSocialNorm.replace(/\s+/g, '_');
-            novasDivergencias.push({
-              id,
-              razao_social: razaoSocial,
-              particularidades,
-              fatura,
-              faturamento: String(row["Faturamento"] || ""),
-              linha_csv: row._linha_csv,
-              planilha_origem: fileTime.name,
-              consultor_onboarding: String(row["Consultor Onboarding"] || row["consultor_onboarding"] || "").trim(),
-              status: historicoStatus[id] || "Em Aberto"
-            });
-          }
-        }
+      // Ajustar o status das divergências encontradas com o histórico do Firestore
+      const novasDivergencias = divergenciasEncontradas.map(div => {
+        // ID gerado no motor já é normalizado
+        const id = div.id || div.razao_social.replace(/\s+/g, '_'); 
+        return {
+          ...div,
+          id,
+          status: historicoStatus[id] || "Em Aberto"
+        } as Divergencia;
       });
+
+      // 2. Salvar as pendências de forma persistente na coleção `auditoria_financeira`
+      // Assumindo mês/ano atual para o histórico, ou capturando da interface (simplificado aqui para 06_2026)
+      const dataAtual = new Date();
+      const mesAno = `${String(dataAtual.getMonth() + 1).padStart(2, '0')}_${dataAtual.getFullYear()}`;
+      await salvarPendenciasFinanceiras(novasDivergencias, mesAno);
 
       setDivergencias(novasDivergencias);
       
@@ -203,7 +161,7 @@ export default function Financas() {
     }
   };
 
-  const handleUpdateStatus = async (div: Divergencia, novoStatus: string) => {
+  const handleUpdateStatus = async (div: Divergencia, novoStatus: "Em Aberto" | "Em Espera" | "Resolvido") => {
     const statusAnterior = div.status;
     
     // Atualiza estado local otimista
