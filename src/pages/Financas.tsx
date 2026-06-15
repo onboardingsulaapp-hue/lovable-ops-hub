@@ -58,7 +58,7 @@ export default function Financas() {
   // Carregar histórico de divergências resolvidas/em espera do Firestore
   useEffect(() => {
     if (!user || user.role !== "admin") return;
-    const q = query(collection(db, "auditoria_financeira"));
+    const q = query(collection(db, "divergencias_financeiras"));
     const unsub = onSnapshot(q, (snap) => {
       const dbDivergencias = snap.docs.map(d => {
         return { ...d.data(), id: d.id } as Divergencia;
@@ -149,7 +149,7 @@ export default function Financas() {
   const handleUpdateStatus = async (div: Divergencia, novoStatus: "Em Aberto" | "Em Espera" | "Resolvido") => {
     // Como a tabela agora é reativa ao onSnapshot do banco, atualizar o banco é suficiente.
     try {
-      const docRef = doc(db, "auditoria_financeira", div.id);
+      const docRef = doc(db, "divergencias_financeiras", div.id);
       
       await setDoc(docRef, {
         status: novoStatus,

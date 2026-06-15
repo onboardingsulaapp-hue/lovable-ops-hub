@@ -516,7 +516,7 @@ const Index = () => {
       const activePending = activePendencias.filter(p => p.status === "Pendente" && !p.isDeleted);
       
       // 2. Fetch divergências financeiras
-      const finSnap = await getDocs(query(collection(db, "auditoria_financeira"), where("status", "==", "Em Aberto")));
+      const finSnap = await getDocs(query(collection(db, "divergencias_financeiras"), where("status", "==", "Em Aberto")));
       const finPends = finSnap.docs.map(d => d.data());
 
       const normalizeStr = (s: string) => s ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";

@@ -37,7 +37,7 @@ export const salvarPendenciasFinanceiras = async (pendencias: AuditoriaFinanceir
   if (!pendencias || pendencias.length === 0) return;
 
   const batch = writeBatch(db);
-  const auditoriaRef = collection(db, "auditoria_financeira");
+  const auditoriaRef = collection(db, "divergencias_financeiras");
 
   for (const item of pendencias) {
     // Chave única previsível: NomeEmpresa_MesAno
