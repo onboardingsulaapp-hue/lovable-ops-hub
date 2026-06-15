@@ -436,6 +436,7 @@ export default function Financas() {
                       <th className="px-6 py-4 text-xs font-bold text-brand-muted border-b border-borderLight uppercase tracking-wider">Particularidades</th>
                       <th className="px-6 py-4 text-xs font-bold text-brand-muted border-b border-borderLight uppercase tracking-wider">Fatura</th>
                       <th className="px-6 py-4 text-xs font-bold text-brand-muted border-b border-borderLight uppercase tracking-wider">Faturamento</th>
+                      <th className="px-6 py-4 text-xs font-bold text-brand-muted border-b border-borderLight uppercase tracking-wider">Consultor</th>
                       <th className="px-6 py-4 text-xs font-bold text-brand-muted border-b border-borderLight uppercase tracking-wider">Linha CSV</th>
                     </tr>
                   </thead>
@@ -491,6 +492,7 @@ export default function Financas() {
                         <td className="px-6 py-4 text-sm text-brand-muted">{div.particularidades}</td>
                         <td className="px-6 py-4 text-sm text-brand-muted">{div.fatura}</td>
                         <td className="px-6 py-4 text-sm text-brand-muted">{div.faturamento || "-"}</td>
+                        <td className="px-6 py-4 text-sm text-brand-muted font-medium">{div.consultor_onboarding || "Sem Responsável"}</td>
                         <td className="px-6 py-4 text-sm text-brand-muted">L{div.linha_csv}</td>
                       </tr>
                     ))}
