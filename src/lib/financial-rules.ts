@@ -9,6 +9,27 @@ const normalizeStr = (str: string | null | undefined): string => {
 };
 
 /**
+ * Normalização AGRESSIVA para comparação de nomes de empresas.
+ * Remove acentos, pontuação, sufixos jurídicos (S/A, LTDA, EIRELI etc.),
+ * conteúdo entre parênteses, e colapsa espaços múltiplos.
+ * Isso garante que "ARMCO DO BRASIL S/A" === "ARMCO DO BRASIL S.A."
+ * e "ADECCO RECURSOS HUMANOS S.A. (INTERNOS)" === "ADECCO RECURSOS HUMANOS S.A."
+ */
+const normalizeEmpresa = (str: string | null | undefined): string => {
+  if (!str) return "";
+  let s = str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")  // Remove acentos
+    .toLowerCase()
+    .replace(/\(.*?\)/g, "")           // Remove conteúdo entre parênteses: (INTERNOS), (MATRIZ), etc.
+    .replace(/[.\-\/,;:'"!?#@&*]+/g, " ") // Substitui toda pontuação por espaço
+    .replace(/\b(ltda|eireli|epp|me|sa|s a|eireili|sociedade anonima)\b/g, "") // Remove sufixos jurídicos
+    .replace(/\s+/g, " ")             // Colapsa espaços múltiplos
+    .trim();
+  return s;
+};
+
+/**
  * Motor de Análise Financeira
  * 
  * Regras:
