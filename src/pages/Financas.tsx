@@ -12,7 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Upload, Play, CheckCircle2, Circle, FileSpreadsheet, Loader2, MoreHorizontal, PauseCircle, RotateCcw, Clock, Mail } from "lucide-react";
 import emailjs from "@emailjs/browser";
 import { analisarDivergenciasFinanceiras } from "@/lib/financial-rules";
-import { salvarPendenciasFinanceiras, AuditoriaFinanceiraItem } from "@/lib/financial-store";
+import { salvarPendenciasFinanceiras, resolverPendenciasFinanceiras, AuditoriaFinanceiraItem, normalizeId } from "@/lib/financial-store";
 
 interface Divergencia {
   id: string; // fingerprint (razao_social_normalizada)
@@ -136,8 +136,20 @@ export default function Financas() {
       const mesAno = `${String(dataAtual.getMonth() + 1).padStart(2, '0')}_${dataAtual.getFullYear()}`;
       await salvarPendenciasFinanceiras(divergenciasEncontradas, mesAno);
 
-      if (divergenciasEncontradas.length > 0) {
-        toast.success(`Encontradas ${divergenciasEncontradas.length} empresas não faturadas. O painel foi atualizado.`, { id: "cruzamento" });
+      // 3. Resolução Automática: As que estavam pendentes/em espera e sumiram agora, foram resolvidas!
+      const novasIds = new Set(divergenciasEncontradas.map(d => `${normalizeId(d.razao_social)}_${mesAno}`));
+      const docsToResolve = divergencias.filter(d => 
+        d.id.endsWith(`_${mesAno}`) && 
+        d.status !== "Resolvido" && 
+        !novasIds.has(d.id)
+      );
+
+      if (docsToResolve.length > 0) {
+        await resolverPendenciasFinanceiras(docsToResolve.map(d => d.id));
+      }
+
+      if (divergenciasEncontradas.length > 0 || docsToResolve.length > 0) {
+        toast.success(`Foram encontradas ${divergenciasEncontradas.length} pendências e ${docsToResolve.length} foram resolvidas automaticamente.`, { id: "cruzamento" });
       } else {
         toast.success("Nenhuma divergência encontrada! Tudo certo.", { id: "cruzamento" });
       }

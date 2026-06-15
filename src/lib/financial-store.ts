@@ -17,7 +17,7 @@ export interface AuditoriaFinanceiraItem {
 /**
  * Normaliza uma string removendo acentos e espaços extras para gerar IDs previsíveis
  */
-const normalizeId = (str: string) => {
+export const normalizeId = (str: string) => {
   return str
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -70,5 +70,26 @@ export const salvarPendenciasFinanceiras = async (pendencias: AuditoriaFinanceir
   }
 
   // Executa as operações atômicas
+  await batch.commit();
+};
+
+/**
+ * Marca como "Resolvido" as pendências financeiras que não apareceram mais no novo cruzamento.
+ * @param docIds Array de IDs dos documentos a serem resolvidos.
+ */
+export const resolverPendenciasFinanceiras = async (docIds: string[]) => {
+  if (!docIds || docIds.length === 0) return;
+
+  const batch = writeBatch(db);
+  const auditoriaRef = collection(db, "divergencias_financeiras");
+
+  for (const id of docIds) {
+    const itemRef = doc(auditoriaRef, id);
+    batch.update(itemRef, {
+      status: "Resolvido",
+      data_atualizacao: serverTimestamp()
+    });
+  }
+
   await batch.commit();
 };
