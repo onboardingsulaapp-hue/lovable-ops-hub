@@ -8,7 +8,8 @@ import columnAliases from "@/config/column_aliases.json";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Upload, Play, CheckCircle2, Circle, FileSpreadsheet, Loader2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Upload, Play, CheckCircle2, Circle, FileSpreadsheet, Loader2, MoreHorizontal, PauseCircle, RotateCcw, Clock } from "lucide-react";
 
 interface Divergencia {
   id: string; // fingerprint (razao_social_normalizada)
@@ -18,7 +19,7 @@ interface Divergencia {
   faturamento: string;
   linha_csv: number;
   planilha_origem: string;
-  resolvido?: boolean;
+  status?: string; // "Em Aberto" | "Em Espera" | "Resolvido"
 }
 
 // Normalizador genérico
@@ -48,23 +49,23 @@ export default function Financas() {
 
   const [divergencias, setDivergencias] = useState<Divergencia[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [historicoResolvidos, setHistoricoResolvidos] = useState<Record<string, boolean>>({});
+  const [historicoStatus, setHistoricoStatus] = useState<Record<string, string>>({});
 
-  // Carregar histórico de divergências resolvidas do Firestore
+  // Carregar histórico de divergências resolvidas/em espera do Firestore
   useEffect(() => {
     if (!user || user.role !== "admin") return;
     const q = query(collection(db, "divergencias_financeiras"));
     const unsub = onSnapshot(q, (snap) => {
-      const history: Record<string, boolean> = {};
+      const history: Record<string, string> = {};
       snap.docs.forEach(d => {
-        history[d.id] = d.data().resolvido;
+        history[d.id] = d.data().status || "Em Aberto";
       });
-      setHistoricoResolvidos(history);
+      setHistoricoStatus(history);
       
       // Atualizar lista atual se houver
       setDivergencias(prev => prev.map(div => ({
         ...div,
-        resolvido: history[div.id] || false
+        status: history[div.id] || "Em Aberto"
       })));
     });
     return () => unsub();
@@ -177,7 +178,7 @@ export default function Financas() {
               faturamento: String(row["Faturamento"] || ""),
               linha_csv: row._linha_csv,
               planilha_origem: fileTime.name,
-              resolvido: historicoResolvidos[id] || false
+              status: historicoStatus[id] || "Em Aberto"
             });
           }
         }
@@ -199,32 +200,30 @@ export default function Financas() {
     }
   };
 
-  const toggleResolvido = async (div: Divergencia) => {
-    const novoStatus = !div.resolvido;
+  const handleUpdateStatus = async (div: Divergencia, novoStatus: string) => {
+    const statusAnterior = div.status;
     
     // Atualiza estado local otimista
-    setDivergencias(prev => prev.map(d => d.id === div.id ? { ...d, resolvido: novoStatus } : d));
+    setDivergencias(prev => prev.map(d => d.id === div.id ? { ...d, status: novoStatus } : d));
 
     try {
       const docRef = doc(db, "divergencias_financeiras", div.id);
-      if (novoStatus) {
-        await setDoc(docRef, {
-          razao_social: div.razao_social,
-          resolvido: true,
-          data_resolucao: new Date().toISOString(),
-          resolvido_por: user?.nome
-        }, { merge: true });
-        toast.success(`Marcado como resolvido.`);
-      } else {
-        // Se desmarcou, podemos remover ou setar como false. Vamos setar como false para histórico.
-        await setDoc(docRef, { resolvido: false }, { merge: true });
-        toast.success(`Marcado como pendente.`);
-      }
+      
+      await setDoc(docRef, {
+        razao_social: div.razao_social,
+        particularidades: div.particularidades,
+        fatura: div.fatura,
+        status: novoStatus,
+        data_atualizacao: new Date().toISOString(),
+        atualizado_por: user?.nome
+      }, { merge: true });
+      
+      toast.success(`Status alterado para ${novoStatus}.`);
     } catch (error) {
       console.error("Erro ao salvar no Firestore:", error);
       toast.error("Erro ao atualizar o status.");
       // Reverter estado em caso de erro
-      setDivergencias(prev => prev.map(d => d.id === div.id ? { ...d, resolvido: !novoStatus } : d));
+      setDivergencias(prev => prev.map(d => d.id === div.id ? { ...d, status: statusAnterior } : d));
     }
   };
 
@@ -331,7 +330,7 @@ export default function Financas() {
           <Card className="border-none shadow-md overflow-hidden mt-8 animate-fade-in">
             <CardHeader className="bg-white border-b border-borderLight flex flex-row items-center justify-between">
               <CardTitle className="text-lg font-bold text-red-600 flex items-center gap-2">
-                Divergências Encontradas ({divergencias.filter(d => !d.resolvido).length} Pendentes)
+                Divergências Encontradas ({divergencias.filter(d => d.status === "Em Aberto").length} Pendentes)
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -339,7 +338,7 @@ export default function Financas() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-[#F8FAFC]">
-                      <th className="px-6 py-4 text-xs font-bold text-brand-muted border-b border-borderLight uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-4 text-xs font-bold text-brand-muted border-b border-borderLight uppercase tracking-wider">Ações</th>
                       <th className="px-6 py-4 text-xs font-bold text-brand-muted border-b border-borderLight uppercase tracking-wider">Razão Social (Origem)</th>
                       <th className="px-6 py-4 text-xs font-bold text-brand-muted border-b border-borderLight uppercase tracking-wider">Particularidades</th>
                       <th className="px-6 py-4 text-xs font-bold text-brand-muted border-b border-borderLight uppercase tracking-wider">Fatura</th>
@@ -349,17 +348,53 @@ export default function Financas() {
                   </thead>
                   <tbody className="divide-y divide-borderLight bg-white">
                     {divergencias.map((div) => (
-                      <tr key={div.id} className={`transition-colors ${div.resolvido ? 'bg-gray-50/50 opacity-60' : 'hover:bg-red-50/30'}`}>
+                      <tr key={div.id} className={`transition-colors ${div.status === 'Resolvido' ? 'bg-gray-50/50 opacity-60' : div.status === 'Em Espera' ? 'bg-amber-50/50 opacity-80' : 'hover:bg-red-50/30'}`}>
                         <td className="px-6 py-4">
-                          <button onClick={() => toggleResolvido(div)} className="focus:outline-none transition-transform hover:scale-110">
-                            {div.resolvido ? (
-                              <CheckCircle2 className="h-6 w-6 text-green-500" />
+                          <div className="flex items-center gap-2">
+                            {div.status === 'Resolvido' ? (
+                              <CheckCircle2 className="h-5 w-5 text-green-500" />
+                            ) : div.status === 'Em Espera' ? (
+                              <Clock className="h-5 w-5 text-amber-500" />
                             ) : (
-                              <Circle className="h-6 w-6 text-gray-300 hover:text-green-400" />
+                              <Circle className="h-5 w-5 text-gray-300" />
                             )}
-                          </button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 flex-shrink-0">
+                                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" className="w-48">
+                                {div.status === 'Resolvido' && (
+                                  <DropdownMenuItem onClick={() => handleUpdateStatus(div, "Em Aberto")}>
+                                    <RotateCcw className="h-4 w-4 mr-2" />
+                                    Reabrir
+                                  </DropdownMenuItem>
+                                )}
+                                {div.status !== 'Resolvido' && (
+                                  <DropdownMenuItem onClick={() => handleUpdateStatus(div, "Resolvido")}>
+                                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                                    Marcar Resolvido
+                                  </DropdownMenuItem>
+                                )}
+                                {div.status !== 'Resolvido' && (
+                                  <DropdownMenuItem onClick={() => handleUpdateStatus(div, div.status === "Em Espera" ? "Em Aberto" : "Em Espera")}>
+                                    <PauseCircle className="h-4 w-4 mr-2" />
+                                    {div.status === "Em Espera" ? "Retirar de Espera" : "Colocar em Espera"}
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </td>
-                        <td className="px-6 py-4 text-sm font-bold text-brand-blue">{div.razao_social}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-brand-blue flex flex-col gap-1">
+                          {div.razao_social}
+                          {div.status === "Em Espera" && (
+                            <span className="inline-flex w-fit items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              Em Espera
+                            </span>
+                          )}
+                        </td>
                         <td className="px-6 py-4 text-sm text-brand-muted">{div.particularidades}</td>
                         <td className="px-6 py-4 text-sm text-brand-muted">{div.fatura}</td>
                         <td className="px-6 py-4 text-sm text-brand-muted">{div.faturamento || "-"}</td>
