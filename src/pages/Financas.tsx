@@ -88,19 +88,27 @@ export default function Financas() {
     const lines = text.split(/\r?\n/);
     let headerRowIndex = 0;
     
-    // Encontra a linha de cabeçalho garantindo que ela tem delimitadores (evita linhas de título isoladas)
+    // Encontra a linha de cabeçalho real usando palavras-chave definitivas
+    // que só aparecem nos nomes de colunas e não em sub-títulos genéricos.
     for (let i = 0; i < lines.length; i++) {
       const lineLower = lines[i].toLowerCase();
-      const temPalavraChave = lineLower.includes("empresa") || lineLower.includes("social") || lineLower.includes("fatura");
-      const temDelimitadores = lines[i].split(/[;,\t]/).length > 2;
+      // Exigir palavras-chave muito específicas de cabeçalho (evita linhas de subtítulo com "Faturamento" etc.)
+      const ehCabecalhoReal = 
+        lineLower.includes("razão social") || lineLower.includes("razao social") ||
+        lineLower.includes("nome empresa") || lineLower.includes("nome da empresa") ||
+        lineLower.includes("cnpj");
+      const temDelimitadores = lines[i].split(/[;,\t]/).length > 3;
       
-      if (temPalavraChave && temDelimitadores) {
+      if (ehCabecalhoReal && temDelimitadores) {
         headerRowIndex = i;
         break;
       }
     }
 
     const csvData = text.split(/\r?\n/).slice(headerRowIndex).join("\n");
+
+    console.log(`[CSV Parser] Arquivo: ${file.name} | Cabeçalho encontrado na linha: ${headerRowIndex}`);
+    console.log(`[CSV Parser] Cabeçalho: ${lines[headerRowIndex].substring(0, 200)}...`);
 
     const records = parse(csvData, {
       columns: (headers: string[]) => headers.map(getOriginalColumnName),

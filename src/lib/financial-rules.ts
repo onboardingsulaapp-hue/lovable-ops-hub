@@ -37,6 +37,18 @@ export const analisarDivergenciasFinanceiras = (
     }
   }
 
+  console.log(`[Motor Financeiro] Empresas no Financeiro: ${empresasFinanceiro.size}`);
+  console.log(`[Motor Financeiro] Linhas no Time: ${dadosTime.length}`);
+  if (dadosTime.length > 0) {
+    const primeiraLinha = dadosTime[0];
+    console.log(`[Motor Financeiro] Colunas disponíveis no Time:`, Object.keys(primeiraLinha).filter(k => !k.startsWith('_')).join(' | '));
+    console.log(`[Motor Financeiro] Amostra Razão Social:`, primeiraLinha["Razão Social do Cliente"] || "(vazio)");
+    console.log(`[Motor Financeiro] Amostra Particularidades:`, primeiraLinha["Particularidades"] || "(vazio)");
+  }
+  if (dadosFinanceiro.length > 0) {
+    console.log(`[Motor Financeiro] Colunas disponíveis no Financeiro:`, Object.keys(dadosFinanceiro[0]).filter(k => !k.startsWith('_')).join(' | '));
+  }
+
   // Valores de particularidade que anulam o gatilho (falsos positivos)
   const ignorarParticularidade = ["nao", "não", "-", "n/a", "vazio"];
 
@@ -49,7 +61,7 @@ export const analisarDivergenciasFinanceiras = (
     const particularidades = String(row["Particularidades"] || row["particularidades"] || "").trim();
     const fatura = String(row["Fatura"] || row["fatura"] || "").trim();
     const faturamento = String(row["Faturamento"] || row["faturamento"] || "").trim();
-    const consultor = String(row["Consultor Onboarding"] || row["consultor_onboarding"] || row["consultor_de_onboarding"] || "").trim();
+    const consultor = String(row["CONSULTOR DE ONBOARDING"] || row["Consultor Onboarding"] || row["consultor_onboarding"] || row["consultor_de_onboarding"] || "").trim();
     const linhaCsv = Number(row._linha_csv) || (i + 2); // Fallback para índice caso não exista metadado
 
     // ----------------------------------------------------
