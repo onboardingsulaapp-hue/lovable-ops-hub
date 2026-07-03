@@ -33,9 +33,6 @@ export const RULES_NOVA_V1 = {
         "EM TRATATIVA"
     ],
     "required_fields": [
-        "Cód. da Empresa (Saúde/Odonto)",
-        "Cód. do Grupo/Apólice",
-        "Vidas Implantadas",
         "Faturamento Emitido (R$ Mensal)",
         "Data da confecção do Book",
         "Identificação do Book no ProSula",
